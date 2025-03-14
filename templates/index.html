@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Portfolio
+{% endblock %}
+
+{% block main %}
+    <table>
+        <tr>
+            <th>Stock quote</th>
+            <th>Amount</th>
+            <th>Price per stock</th>
+            <th>Total balance in stock</th>
+        </tr>
+        {% for row in user_portfolio %}
+        <tr>
+            <th>{{ row["stock_type"] }}</th>
+            <td>{{ row["amount"] }}</td>
+            <td>{{ row["price"] }}</td>
+            <td>{{ row["stock_total"] }}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <th colspan = 4 style="padding: 20px 20px 20px 20px;" > </th>
+        </tr>
+        <tr>
+            <th colspan = 3>Your cash balance:</th>
+            <th>{{ balance }}</th>
+        </tr>
+        <tr>
+            <th colspan = 3>Total Balance</th>
+            <th>{{ total_balance }}</th>
+        </tr>
+    </table>
+
+{% endblock %}
