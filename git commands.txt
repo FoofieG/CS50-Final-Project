@@ -1,0 +1,56 @@
+git clone <url> (clones the repository from GitHub)
+
+git add <file name> (adds a change)
+git diff (shows difference between ur file and the file in web)
+git commit -m/-am "message" (commits changes)
+git status (shows the differences between whats pushed in web and what changes have been commited)
+git log (see the history of commits)
+
+git push (pushes changes to web)
+git pull (if in online version there is a newer version- get it)
+
+git reset --hard origin/main reverts code back to remote repository version (before u push it)
+git reset --hard <commit hash> (reverts code back to a previous commit, YOU CANT GO BACK!!!)
+
+Branch - copy of the "main" code, without touching the main code, 
+and later u can update it when u are sure it is ready
+
+git branch (shows all current branches)
+git branch <branch_name> (creates a new branch)
+git checkout <branch_name> (will switch you to the new branch)
+git checkout -b <branch_name> (creates new branch and switch to it)
+
+git merge <branch_name> (merges two different branches, merges that <branch_name> branch with the branch ur currently on)
+eg. im currently on "main" branch, but "test" branch has 3 new files, 
+after typing the command, main will update with test branches contents
+
+git branch -D <branch_name> (deletes the branch)
+
+
+1. Check for Changes
+Run:
+git status
+
+This shows which files have been modified.
+
+2. Add Changes to Staging
+To stage all modified files, run:
+git add .
+
+Or, to add specific files only:
+git add filename.py
+
+3. Commit Your Changes
+Write a meaningful commit message:
+git commit -m "Updated feature X or fixed bug Y"
+
+4. Pull Latest Changes (Optional but Recommended)
+If working on multiple devices or with a team, first pull the latest changes before pushing:
+git pull origin main --rebase
+
+5. Push Your Changes to GitHub
+git push origin main
+
+Shortcut (If You’re Sure You Want to Update Immediately)
+You can combine steps 2–5 into a single command:
+git add . && git commit -m "Updated project" && git push origin main
