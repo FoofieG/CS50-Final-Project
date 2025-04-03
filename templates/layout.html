@@ -2,86 +2,101 @@
 
 <html lang="en">
 
-    <head>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
 
-        <meta charset="utf-8">
-        <meta name="viewport" content="initial-scale=1, width=device-width">
+    <link href="/static/favicon.ico" rel="icon">
 
-        <!-- http://getbootstrap.com/docs/5.3/ -->
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <link href="/static/styles.css" rel="stylesheet">
 
-        <!-- https://favicon.io/emoji-favicons/money-bag/ -->
-        <link href="/static/favicon.ico" rel="icon">
+    <title>Ski School: {% block title %}{% endblock %}</title>
+</head>
 
-        <link href="/static/styles.css" rel="stylesheet">
-
-        <title>C$50 Finance: {% block title %}{% endblock %}</title>
-
-    </head>
-
-    <body>
-
-        <nav class="bg-light border navbar navbar-expand-md navbar-light">
-            <div class="container-fluid">
-                <a class="navbar-brand" href="/"><span class="blue">C</span><span class="red">$</span><span class="yellow">5</span><span class="green">0</span> <span class="red">Finance</span></a>
-                <button aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation" class="navbar-toggler" data-bs-target="#navbar" data-bs-toggle="collapse" type="button">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navbar">
-                    {% if session["user_id"] %}
-                        <ul class="navbar-nav me-auto mt-2">
-                            <li class="nav-item"><a class="nav-link" href="/quote">Quote</a></li>
-                            <li class="nav-item"><a class="nav-link" href="/buy">Buy</a></li>
-                            <li class="nav-item"><a class="nav-link" href="/sell">Sell</a></li>
-                            <li class="nav-item"><a class="nav-link" href="/history">History</a></li>
-                        </ul>
-                        <ul class="navbar-nav ms-auto mt-2">
-                            <li class="nav-item"><a class="nav-link" href="/change_password">Change Password</a></li>
-                            <li class="nav-item"><a class="nav-link" href="/logout">Log Out</a></li>
-                        </ul>
-                    {% else %}
-                        <ul class="navbar-nav ms-auto mt-2">
-                            <li class="nav-item"><a class="nav-link" href="/register">Register</a></li>
-                            <li class="nav-item"><a class="nav-link" href="/login">Log In</a></li>
-                        </ul>
-                    {% endif %}
-                </div>
+<body>
+    <!-- Navigation bar -->
+    <nav class="navbar navbar-inverse">
+        <div class="container-fluid">
+            <div class="navbar-header">
+                <a class="navbar-brand" href="/"><img src="/static/logo.png" width="120px" height="20px"></a>
             </div>
-        </nav>
+            {% if current_user.is_authenticated %}
+                <!-- Left side nav bar (logged IN)-->
+                <ul class="nav navbar-nav">
+                    <!-- Owner only-->
+                    {% if current_user.role == "owner" %}
+                        <li><a href="/owner/working_hours">Working Hours</a></li>
+                        <li><a href="/owner/admin_schedule">Admin Schedule</a></li>
+                    {% endif %}
 
-        {% if get_flashed_messages() %}
-            <header>
-                <div class="alert alert-primary mb-0 text-center" role="alert">
-                    {{ get_flashed_messages() | join(" ") }}
-                </div>
-            </header>
-        {% endif %}
+                    <!-- Admin and owner only-->
+                    {% if current_user.role == "admin" or current_user.role == "owner" %}
+                        <li><a href="/admin/home">Admin Dashboard</a></li>
+                        <li><a href="/admin/manage_time_requests">Time Requests</a></li>
+                        <li><a href="/admin/lesson_calendar">Lesson Calendar</a></li>
+                    {% endif %}
+                    <!-- Instructor only-->
+                    {% if current_user.role == "instructor" %}
+                        <li><a href="/instructor/calendar">My Calendar</a></li>
+                        <li><a href="/instructor/history">History</a></li>
+                    {% endif %}
+                    <!-- Customer only-->
+                    {% if current_user.role == "customer" %}
+                        <li><a href="/customer/book_lesson">Book Lesson</a></li>
+                        <li><a href="/customer/my_lessons">My Lessons</a></li>
+                    {% endif %}
+                </ul>
+                <!-- Right side nav bar (logged IN)-->
+                <ul class="nav navbar-nav navbar-right">
+                    <!-- Owner only-->
+                    {% if current_user.role == "owner" %}
+                        <li class="dropdown"><a class="dropdown-toggle" data-toggle="dropdown" href="#">Manage users <span class="caret"></span></a>
+                            <ul class="dropdown-menu">
+                                <li><a href="/owner/add_user">Add user</a></li>
+                                <li><a href="/owner/edit_staff_info">Edit staff information</a></li>
+                                <li><a style="
+                                    background-color: #f8d7da;
+                                    color: #721c24;
+                                    border: 1px solid #f5c6cb;
+                                    padding: auto;
+                                    margin-top: 2px;" href="/owner/delete_user">DELETE USER</a></li>
+                            </ul>
+                        </li>
+                    {% endif %}
+                    <!-- Everyone-->
+                    <li><a href="/settings"><span class="glyphicon glyphicon-user"></span>Profile settings</a></li>
+                    <li><a href="/logout"><span class="glyphicon glyphicon-log-out"></span> Log out</a></li>
+                </ul>
+                {% else %}
+                    <!-- Right side nav bar (logged OUT)-->
+                    <ul class="nav navbar-nav navbar-right">
+                        <li><a href="/register"><span class="glyphicon glyphicon-log-in"></span> Register</a></li>
+                        <li><a href="/login"><span class="glyphicon glyphicon-log-in"></span> Log in</a></li>
+                    </ul>
+            {% endif %}
+        </div>
+    </nav>
 
-        <main class="container py-5 text-center">
-            {% block main %}{% endblock %}
-        </main>
+    {% if get_flashed_messages() %}
+        <div class="container">
+            <div class="alert alert-info text-center" role="alert">
+                {{ get_flashed_messages() | join(" ") }}
+            </div>
+        </div>
+    {% endif %}
 
-        <footer class="mb-5">
-            <form action="https://validator.w3.org/check" class="text-center" enctype="multipart/form-data" method="post" target="_blank">
-                <input name="doctype" type="hidden" value="HTML5">
-                <input name="fragment" type="hidden">
-                <input alt="Validate" src="/static/I_heart_validator.png" type="image"> <!-- https://validator.w3.org/ -->
-            </form>
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    // Adapted from https://stackoverflow.com/a/10162353
-                    const html = '<!DOCTYPE ' +
-                    document.doctype.name +
-                    (document.doctype.publicId ? ' PUBLIC "' + document.doctype.publicId + '"' : '') +
-                    (!document.doctype.publicId && document.doctype.systemId ? ' SYSTEM' : '') +
-                    (document.doctype.systemId ? ' "' + document.doctype.systemId + '"' : '') +
-                    '>\n' + document.documentElement.outerHTML;
-                    document.querySelector('form[action="https://validator.w3.org/check"] > input[name="fragment"]').value = html;
-                });
-            </script>
-        </footer>
+    <main>
+        {% block main %}{% endblock %}
+    </main>
 
-    </body>
+    <footer class="small text-center text-muted">
+        <div class="container">
+            <p>Ski School Management System</p>
+        </div>
+    </footer>
+</body>
 
 </html>

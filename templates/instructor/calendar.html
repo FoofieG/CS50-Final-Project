@@ -1,0 +1,1027 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    My Calendar
+{% endblock %}
+
+{% block main %}
+<div class="container">
+    <h1 class="mb-4">My Calendar</h1>
+    
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title">
+                <span id="calendarViewTitle">Upcoming Lessons</span>
+                <div class="pull-right">
+                    <button class="btn btn-xs btn-primary" id="toggleCalendarView">Show Monthly Calendar</button>
+                </div>
+            </h3>
+        </div>
+        <div class="panel-body">
+            <!-- Next Day with Lessons View -->
+            <div id="detailedView">
+                <div class="day-container mb-4">
+                    <h4>{{ next_day.day_name }} - {{ next_day.formatted_date }}</h4>
+                    <div class="table-responsive">
+                        {% if detailed_lessons %}
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Customer</th>
+                                        <th>Contact</th>
+                                        <th>Status</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for lesson in detailed_lessons %}
+                                        <tr class="lesson-row" data-lesson-id="{{ lesson.id }}">
+                                            <td>{{ lesson.start_time }} - {{ lesson.end_time }}</td>
+                                            <td>
+                                                {% if lesson.customer_first_name and lesson.customer_last_name %}
+                                                    {{ lesson.customer_first_name }} {{ lesson.customer_last_name }}
+                                                {% else %}
+                                                    {{ lesson.customer_name }}
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if lesson.customer_email %}
+                                                    <div>Email: {{ lesson.customer_email }}</div>
+                                                {% endif %}
+                                                {% if lesson.customer_phone %}
+                                                    <div>Phone: {{ lesson.customer_phone }}</div>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if lesson.status == 'booked' %}
+                                                    <span class="label label-success">Booked</span>
+                                                {% else %}
+                                                    <span class="label label-default">{{ lesson.status }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ lesson.notes or 'No notes' }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <div class="alert alert-info">
+                                No lessons scheduled for {{ next_day.formatted_date }}.
+                                {% if next_day.date == today %}
+                                    This is your first free day!
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Monthly Calendar View (initially hidden) -->
+            <div id="monthlyView" style="display: none;">
+                <div class="text-center mb-3">
+                    <button class="btn btn-sm calendar-nav-btn" id="prevMonth">&lt; Previous Month</button>
+                    <span id="currentMonthDisplay">{{ current_month }}</span>
+                    <button class="btn btn-sm calendar-nav-btn" id="nextMonth">Next Month &gt;</button>
+                </div>
+                <div id="instructorCalendar" class="table-responsive">
+                    <!-- Calendar will be loaded here -->
+                    <div class="text-center">Loading calendar...</div>
+                </div>
+                <div class="calendar-legend mt-3">
+                    <div class="legend-item"><span class="legend-color bg-working-hours"></span> Working Hours</div>
+                    <div class="legend-item"><span class="legend-color bg-primary"></span> Booked Lesson</div>
+                    <div class="legend-item"><span class="legend-color bg-success"></span> Available</div>
+                    <div class="legend-item"><span class="legend-color bg-danger"></span> Unavailable/Closed</div>
+                    <div class="legend-item"><span class="legend-color bg-light"></span> Outside Working Hours</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="panel panel-default mt-4">
+        <div class="panel-heading">
+            <h3 class="panel-title">Request Time Off/On</h3>
+        </div>
+        <div class="panel-body">
+            <form id="timeRequestForm" action="/instructor/request_time" method="post">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="request_date">Date:</label>
+                            <input type="date" class="form-control" id="request_date" name="request_date" required min="{{ today }}">
+                            <div class="working-hours-notice mt-2 small text-muted">
+                                Please select a date to see available working hours.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="start_time">Start Time:</label>
+                            <select class="form-control" id="start_time" name="start_time" required>
+                                <option value="">Select Start Time</option>
+                                {% for time in time_slots %}
+                                    <option value="{{ time }}">{{ time }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="end_time">End Time:</label>
+                            <select class="form-control" id="end_time" name="end_time" required>
+                                <option value="">Select End Time</option>
+                                {% for time in time_slots %}
+                                    <option value="{{ time }}">{{ time }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label for="request_type">Type:</label>
+                            <select class="form-control" id="request_type" name="request_type" required>
+                                <option value="open">Open Time</option>
+                                <option value="close">Time Off</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <!-- Hidden fields for client-side validation -->
+                <input type="hidden" id="validation_error" name="validation_error" value="0">
+                <input type="hidden" id="validation_message" name="validation_message" value="">
+                <button type="submit" class="btn btn-primary">Submit Request</button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="panel panel-default mt-4">
+        <div class="panel-heading">
+            <h3 class="panel-title">Pending Time Requests</h3>
+        </div>
+        <div class="panel-body">
+            {% if pending_requests %}
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for request in pending_requests %}
+                            <tr>
+                                <td>{{ request.request_date }}</td>
+                                <td>{{ request.start_time }} - {{ request.end_time }}</td>
+                                <td>
+                                    {% if request.request_type == 'open' %}
+                                        <span class="label label-success">Open</span>
+                                    {% else %}
+                                        <span class="label label-danger">Close</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if request.status == 'pending' %}
+                                        <span class="label label-warning">Pending</span>
+                                    {% elif request.status == 'approved' %}
+                                        <span class="label label-success">Approved</span>
+                                    {% else %}
+                                        <span class="label label-danger">Rejected</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if request.status == 'pending' %}
+                                        <form action="/instructor/cancel_time_request" method="post" style="display: inline;">
+                                            <input type="hidden" name="request_id" value="{{ request.id }}">
+                                            <button type="submit" class="btn btn-xs btn-danger" onclick="return confirm('Are you sure you want to cancel this request?');">Cancel</button>
+                                        </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="alert alert-info">No pending time requests.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Customer Details Modal -->
+    <div class="modal fade" id="customerDetailsModal" tabindex="-1" role="dialog" aria-labelledby="customerDetailsModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="customerDetailsModalLabel">Customer Details</h4>
+                </div>
+                <div class="modal-body">
+                    <div id="customerDetails">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Name:</strong> <span id="customerName"></span></p>
+                                <p><strong>Email:</strong> <span id="customerEmail"></span></p>
+                                <p><strong>Phone:</strong> <span id="customerPhone"></span></p>
+                                <p><strong>Age:</strong> <span id="customerAge"></span></p>
+                                <p><strong>Ski Type:</strong> <span id="customerSkiType"></span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Lesson Date:</strong> <span id="lessonDate"></span></p>
+                                <p><strong>Time:</strong> <span id="lessonTime"></span></p>
+                                <p><strong>Status:</strong> <span id="lessonStatus"></span></p>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <p><strong>Notes:</strong></p>
+                                <div id="lessonNotes" class="well well-sm"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        // Store working hours data from server
+        var workingHours = {{ working_hours|tojson|safe }};
+        
+        // Store all lessons data for modal display
+        var allLessons = {{ lessons|tojson|safe }};
+        
+        // When date is selected, set default times based on working hours
+        $('#request_date').change(function() {
+            var selectedDate = new Date($(this).val());
+            if (selectedDate) {
+                // Get day of week (0 = Sunday, 1 = Monday, etc.)
+                var dayOfWeek = selectedDate.getDay();
+                // Convert to our format (0 = Monday, 6 = Sunday)
+                dayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                
+                // Check if we have working hours for this day
+                if (workingHours[dayOfWeek] && workingHours[dayOfWeek].is_open) {
+                    // Set default start and end times based on working hours
+                    $('#start_time').val(workingHours[dayOfWeek].open_time);
+                    $('#end_time').val(workingHours[dayOfWeek].close_time);
+                }
+            }
+        });
+        
+        // Toggle between detailed view and monthly calendar
+        $('#toggleCalendarView').click(function() {
+            if ($('#detailedView').is(':visible')) {
+                // Switch to monthly view
+                $('#detailedView').hide();
+                $('#monthlyView').show();
+                $('#calendarViewTitle').text('Monthly Calendar');
+                $(this).text('Show Upcoming Lessons');
+                
+                // Load the monthly calendar if it hasn't been loaded yet
+                if ($('#instructorCalendar').find('table').length === 0) {
+                    loadCalendar({{ current_year }}, {{ current_month_num }});
+                }
+            } else {
+                // Switch to detailed view
+                $('#monthlyView').hide();
+                $('#detailedView').show();
+                $('#calendarViewTitle').text('Upcoming Lessons');
+                $(this).text('Show Monthly Calendar');
+            }
+        });
+        
+        // Calendar functionality
+        var currentYear = {{ current_year }};
+        var currentMonth = {{ current_month_num }};
+        
+        // Previous month button
+        $('#prevMonth').click(function() {
+            currentMonth--;
+            if (currentMonth < 1) {
+                currentMonth = 12;
+                currentYear--;
+            }
+            loadCalendar(currentYear, currentMonth);
+        });
+        
+        // Next month button
+        $('#nextMonth').click(function() {
+            currentMonth++;
+            if (currentMonth > 12) {
+                currentMonth = 1;
+                currentYear++;
+            }
+            loadCalendar(currentYear, currentMonth);
+        });
+        
+        // Function to load calendar via AJAX
+        function loadCalendar(year, month) {
+            $('#instructorCalendar').html('<div class="text-center">Loading calendar...</div>');
+            
+            $.ajax({
+                url: '/instructor/get_calendar',
+                type: 'GET',
+                data: {
+                    year: year,
+                    month: month
+                },
+                dataType: 'json',
+                success: function(data) {
+                    renderCalendarWithData(data);
+                },
+                error: function(xhr, status, error) {
+                    console.error("AJAX error:", error);
+                    $('#instructorCalendar').html('<div class="alert alert-danger">Error loading calendar: ' + error + '</div>');
+                }
+            });
+        }
+        
+        // Function to render calendar with provided data
+        function renderCalendarWithData(data) {
+            var monthNames = ["January", "February", "March", "April", "May", "June",
+                             "July", "August", "September", "October", "November", "December"];
+            
+            // Update month display
+            $('#currentMonthDisplay').text(monthNames[data.month-1] + ' ' + data.year);
+            
+            // Create table
+            var table = $('<table class="table table-bordered calendar-table"></table>');
+            
+            // Get days in month
+            var daysInMonth = new Date(data.year, data.month, 0).getDate();
+            
+            // Get today's date for highlighting
+            var today = new Date();
+            var isCurrentMonth = (today.getMonth() + 1 === data.month && today.getFullYear() === data.year);
+            var todayDate = today.getDate();
+            
+            // Create header row with days
+            var headerRow = $('<tr></tr>');
+            headerRow.append('<th class="time-header">Time</th>'); // Time column header
+            
+            // Add day columns
+            for (var day = 1; day <= daysInMonth; day++) {
+                var date = new Date(data.year, data.month-1, day);
+                var dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
+                var headerClass = 'day-header';
+                
+                // Get day of week index (0 = Monday, 6 = Sunday)
+                var dayOfWeekIndex = date.getDay();
+                dayOfWeekIndex = dayOfWeekIndex === 0 ? 6 : dayOfWeekIndex - 1;
+                
+                // Check if school is closed on this day
+                if (data.working_hours[dayOfWeekIndex] && !data.working_hours[dayOfWeekIndex].is_open) {
+                    headerClass += ' closed-day';
+                }
+                
+                // Highlight today
+                if (isCurrentMonth && day === todayDate) {
+                    headerClass += ' today';
+                }
+                
+                headerRow.append('<th class="' + headerClass + '">' + day + '<br>' + dayOfWeek + '</th>');
+            }
+            
+            table.append(headerRow);
+            
+            // Create time rows (from 8:00 to 23:00 in 30-minute intervals)
+            var startTime = 8 * 60; // 8:00 in minutes
+            var endTime = 23 * 60; // 23:00 in minutes
+            var interval = 30; // 30 minutes
+            
+            for (var time = startTime; time < endTime; time += interval) {
+                var hours = Math.floor(time / 60);
+                var minutes = time % 60;
+                var timeStr = (hours < 10 ? '0' + hours : hours) + ':' + (minutes < 10 ? '0' + minutes : minutes);
+                
+                var nextTime = time + interval;
+                var nextHours = Math.floor(nextTime / 60);
+                var nextMinutes = nextTime % 60;
+                var nextTimeStr = (nextHours < 10 ? '0' + nextHours : nextHours) + ':' + (nextMinutes < 10 ? '0' + nextMinutes : nextMinutes);
+                
+                var timeRow = $('<tr></tr>');
+                timeRow.append('<td class="time-cell">' + timeStr + ' - ' + nextTimeStr + '</td>');
+                
+                // Add cells for each day
+                for (var day = 1; day <= daysInMonth; day++) {
+                    var dateStr = data.year + '-' + 
+                         (data.month < 10 ? '0' + data.month : data.month) + '-' + 
+                         (day < 10 ? '0' + day : day);
+            
+                    var cell = $('<td class="schedule-cell" data-date="' + dateStr + '" data-time="' + timeStr + '"></td>');
+                    
+                    // Highlight today's cells
+                    if (isCurrentMonth && day === todayDate) {
+                        cell.addClass('today-cell');
+                    }
+                    
+                    // Check if school is closed on this day
+                    var jsDate = new Date(data.year, data.month-1, day);
+                    var dayOfWeekIndex = jsDate.getDay(); // 0 = Sunday, 6 = Saturday
+                    dayOfWeekIndex = dayOfWeekIndex === 0 ? 6 : dayOfWeekIndex - 1; // Convert to our format
+                    
+                    if (data.working_hours[dayOfWeekIndex] && !data.working_hours[dayOfWeekIndex].is_open) {
+                        // School is closed
+                        cell.addClass('bg-danger closed-day');
+                    } else {
+                        // Check if instructor is available at this time
+                        var availability = findAvailability(dateStr, timeStr, data.availabilities);
+                        
+                        // Check if instructor is unavailable at this time
+                        var unavailability = findAvailability(dateStr, timeStr, data.unavailabilities);
+                        
+                        // Check if there's a lesson at this time
+                        var lesson = findLesson(dateStr, timeStr, data.lessons);
+                        
+                        // Check if it's within working hours
+                        var dayWorkingHours = data.working_hours[dayOfWeekIndex];
+                        var isWithinWorkingHours = false;
+                        
+                        if (dayWorkingHours && dayWorkingHours.is_open && 
+                            timeStr >= dayWorkingHours.open_time && timeStr < dayWorkingHours.close_time) {
+                            isWithinWorkingHours = true;
+                        }
+                        
+                        if (lesson) {
+                            // There's a lesson at this time
+                            cell.addClass('bg-primary lesson-cell');
+                            cell.attr('data-lesson-id', lesson.id);
+                            
+                            // Create lesson content with customer name
+                            var customerName = lesson.customer_first_name && lesson.customer_last_name ? 
+                                lesson.customer_first_name + ' ' + lesson.customer_last_name : 
+                                lesson.customer_name;
+                                
+                            var lessonContent = $('<div class="lesson-content"></div>');
+                            lessonContent.append('<strong>' + customerName + '</strong>');
+                            
+                            // Add time to the lesson content
+                            lessonContent.append('<small>' + lesson.start_time + ' - ' + lesson.end_time + '</small>');
+                            
+                            cell.append(lessonContent);
+                        } else if (unavailability) {
+                            // Instructor has requested time off
+                            cell.addClass('bg-danger');
+                        } else if (availability) {
+                            // Instructor is available
+                            cell.addClass('bg-success');
+                        } else if (isWithinWorkingHours) {
+                            // Within working hours - default available
+                            cell.addClass('bg-working-hours');
+                        } else {
+                            // Outside working hours
+                            cell.addClass('bg-light');
+                        }
+                    }
+                    
+                    timeRow.append(cell);
+                }
+                
+                table.append(timeRow);
+            }
+            
+            // Add table to container
+            $('#instructorCalendar').html(table);
+            
+            // Add event handlers for lesson cells
+            $('.lesson-cell').click(function() {
+                var lessonId = $(this).data('lesson-id');
+                showLessonDetails(lessonId);
+            });
+            
+            // Show lesson content on hover
+            $('.lesson-cell').hover(
+                function() {
+                    $(this).find('.lesson-content').fadeIn(200);
+                },
+                function() {
+                    $(this).find('.lesson-content').fadeOut(200);
+                }
+            );
+        }
+        
+        // Function to show lesson details in modal
+        function showLessonDetails(lessonId) {
+            // Find the lesson in our data
+            var lesson = null;
+            for (var i = 0; i < allLessons.length; i++) {
+                if (allLessons[i].id === lessonId) {
+                    lesson = allLessons[i];
+                    break;
+                }
+            }
+            
+            if (lesson) {
+                // Format customer name
+                var customerName = lesson.customer_first_name && lesson.customer_last_name ? 
+                    lesson.customer_first_name + ' ' + lesson.customer_last_name : 
+                    lesson.customer_name;
+                
+                // Format date
+                var lessonDate = new Date(lesson.lesson_date + 'T00:00:00');
+                var formattedDate = lessonDate.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+                
+                // Calculate age if birthday is available
+                var customerAge = 'Not provided';
+                if (lesson.customer_birthday) {
+                    var birthDate = new Date(lesson.customer_birthday);
+                    var today = new Date();
+                    var age = today.getFullYear() - birthDate.getFullYear();
+                    var monthDiff = today.getMonth() - birthDate.getMonth();
+                    
+                    // If birthday hasn't occurred yet this year, subtract one year
+                    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                        age--;
+                    }
+                    
+                    customerAge = age + ' years';
+                }
+                
+                // Update modal content
+                $('#customerName').text(customerName);
+                $('#customerEmail').text(lesson.customer_email || 'Not provided');
+                $('#customerPhone').text(lesson.customer_phone || 'Not provided');
+                $('#customerAge').text(customerAge);
+                $('#customerSkiType').text(lesson.customer_ski_type || 'Not provided');
+                $('#lessonDate').text(formattedDate);
+                $('#lessonTime').text(lesson.start_time + ' - ' + lesson.end_time);
+                
+                // Set status with appropriate label
+                var statusHtml = '';
+                if (lesson.status === 'booked') {
+                    statusHtml = '<span class="label label-success">Booked</span>';
+                } else {
+                    statusHtml = '<span class="label label-default">' + lesson.status + '</span>';
+                }
+                $('#lessonStatus').html(statusHtml);
+                
+                // Set notes
+                $('#lessonNotes').text(lesson.notes || 'No notes for this lesson.');
+                
+                // Show the modal
+                $('#customerDetailsModal').modal('show');
+            }
+        }
+        
+        // Add click handler for lesson rows in detailed view
+        $('.lesson-row').click(function() {
+            var lessonId = $(this).data('lesson-id');
+            showLessonDetails(lessonId);
+        });
+        
+        // Helper function to find availability for a specific date and time
+        function findAvailability(date, time, availabilities) {
+            if (!availabilities || !Array.isArray(availabilities)) {
+                return null;
+            }
+            
+            for (var i = 0; i < availabilities.length; i++) {
+                var availability = availabilities[i];
+                var availDate = availability.availability_date || availability.unavailable_date || availability.request_date;
+                
+                if (availDate === date) {
+                    // Check if time is within the availability range
+                    if (availability.start_time <= time && time < availability.end_time) {
+                        return availability;
+                    }
+                }
+            }
+            return null;
+        }
+        
+        // Helper function to find lesson for a specific date and time
+        function findLesson(date, time, lessons) {
+            if (!lessons || !Array.isArray(lessons)) {
+                return null;
+            }
+            
+            for (var i = 0; i < lessons.length; i++) {
+                if (lessons[i].lesson_date === date) {
+                    // Check if time is within the lesson range
+                    if (lessons[i].start_time <= time && time < lessons[i].end_time) {
+                        return lessons[i];
+                    }
+                }
+            }
+            return null;
+        }
+
+    // Add validation for time requests to ensure they're within working hours
+    $('#timeRequestForm').submit(function(e) {
+        var selectedDate = new Date($('#request_date').val());
+        var startTime = $('#start_time').val();
+        var endTime = $('#end_time').val();
+        
+        if (selectedDate && startTime && endTime) {
+            // Get day of week (0 = Sunday, 1 = Monday, etc.)
+            var dayOfWeek = selectedDate.getDay();
+            // Convert to our format (0 = Monday, 6 = Sunday)
+            dayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            
+            // Check if we have working hours for this day
+            if (!workingHours[dayOfWeek] || !workingHours[dayOfWeek].is_open) {
+                // Set validation fields for Flask to use
+                $('#validation_error').val('1');
+                $('#validation_message').val('The school is closed on this day. Please select a different date.');
+                return true; // Allow form submission to handle server-side flash message
+            }
+            
+            // Check if the selected times are within working hours
+            var dayWorkingHours = workingHours[dayOfWeek];
+            if (startTime < dayWorkingHours.open_time || endTime > dayWorkingHours.close_time) {
+                // Set validation fields for Flask to use
+                $('#validation_error').val('1');
+                $('#validation_message').val('The selected times must be within working hours (' + 
+                      dayWorkingHours.open_time + ' - ' + dayWorkingHours.close_time + 
+                      ') for this day.');
+                return true; // Allow form submission to handle server-side flash message
+            }
+            
+            // Check if end time is after start time
+            if (startTime >= endTime) {
+                // Set validation fields for Flask to use
+                $('#validation_error').val('1');
+                $('#validation_message').val('End time must be after start time.');
+                return true; // Allow form submission to handle server-side flash message
+            }
+        }
+        
+        // If we get here, the request is valid
+        $('#validation_error').val('0');
+        $('#validation_message').val('');
+        return true;
+    });
+    
+    // Add helper text to show working hours when date is selected
+    $('#request_date').change(function() {
+        // Clear any existing helper text
+        $('.working-hours-helper').remove();
+        
+        var selectedDate = new Date($(this).val());
+        if (selectedDate) {
+            // Get day of week (0 = Sunday, 1 = Monday, etc.)
+            var dayOfWeek = selectedDate.getDay();
+            // Convert to our format (0 = Monday, 6 = Sunday)
+            dayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            
+            // Check if we have working hours for this day
+            if (workingHours[dayOfWeek] && workingHours[dayOfWeek].is_open) {
+                // Add helper text showing working hours
+                var dayName = selectedDate.toLocaleDateString('en-US', { weekday: 'long' });
+                var helperText = $('<div class="working-hours-helper text-info small mt-2"></div>');
+                helperText.text('Working hours for ' + dayName + ': ' + 
+                               workingHours[dayOfWeek].open_time + ' - ' + 
+                               workingHours[dayOfWeek].close_time);
+                $(this).parent().append(helperText);
+            } else {
+                // Show closed message
+                var dayName = selectedDate.toLocaleDateString('en-US', { weekday: 'long' });
+                var helperText = $('<div class="working-hours-helper text-danger small mt-2"></div>');
+                helperText.text('The school is closed on ' + dayName + '. Please select a different date.');
+                $(this).parent().append(helperText);
+            }
+        }
+    });
+});
+</script>
+
+<style>
+    /* Calendar styles */
+    .calendar-table {
+        table-layout: fixed;
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 3px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .day-header {
+        width: 50px;
+        text-align: center;
+        font-size: 13px;    
+        vertical-align: middle;
+        background-color: #f8f9fa;
+        padding: 8px 0;
+        border-radius: 4px 4px 0 0;
+        font-weight: 600;
+    }
+
+    .day-header.today {
+        background-color: #d4edda;
+        color: #155724;
+        font-weight: bold;
+        box-shadow: inset 0 0 0 2px #28a745;
+    }
+    
+    .day-header.closed-day {
+        background-color: #f8d7da;
+        color: #721c24;
+        font-weight: bold;
+    }
+
+    .time-header {
+        width: 100px;
+        text-align: center;
+        vertical-align: middle;
+        background-color: #f8f9fa;
+        border-radius: 4px 0 0 0;
+        font-weight: 600;
+    }
+
+    .time-cell {
+        width: 100px;
+        text-align: left;
+        vertical-align: middle;
+        font-size: 12px;
+        background-color: #f8f9fa;
+        padding: 5px 8px;
+        border-right: 1px solid #e9ecef;
+    }
+
+    .schedule-cell {
+        height: 40px;
+        text-align: center;
+        vertical-align: middle;
+        font-size: 13px;
+        padding: 0;
+        position: relative;
+        border-radius: 2px;
+        transition: all 0.2s ease;
+    }
+    
+    .closed-day {
+        background-color: #f8d7da !important;
+        border: 1px solid #f5c6cb !important;
+        color: #721c24;
+    }
+
+    .bg-danger {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+    }
+
+    .bg-success {
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+    }
+
+    .bg-primary {
+        background-color: #007bff;
+        color: white;
+        border: 1px solid #0069d9;
+    }
+    
+    .bg-working-hours {
+        background-color: #e2f0fb;
+        border: 1px solid #b8daff;
+        position: relative;
+    }
+    
+    .bg-working-hours:before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 5px,
+            rgba(0, 123, 255, 0.05) 5px,
+            rgba(0, 123, 255, 0.05) 10px
+        );
+    }
+
+    .bg-default {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+    }
+
+    .bg-light {
+        background-color: #e9ecef;
+        border: 1px solid #dee2e6;
+        color: #6c757d;
+    }
+
+    .lesson-cell {
+        cursor: pointer;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+        transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+        z-index: 5;
+    }
+
+    .lesson-cell:hover {
+        box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+        transform: translateY(-1px);
+    }
+
+    .lesson-content {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 123, 255, 0.9);
+        color: white;
+        z-index: 10;
+        padding: 5px;
+        text-align: center;
+        font-size: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+    }
+
+    .lesson-content strong {
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    .lesson-content small {
+        font-size: 9px;
+        opacity: 0.9;
+        margin-top: 2px;
+    }
+
+    /* Calendar navigation */
+    #currentMonthDisplay {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0 15px;
+        min-width: 150px;
+        display: inline-block;
+    }
+
+    .calendar-nav-btn {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        color: #495057;
+        padding: 5px 10px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+
+    .calendar-nav-btn:hover {
+        background-color: #e9ecef;
+        border-color: #ced4da;
+    }
+
+    /* Calendar legend */
+    .calendar-legend {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 15px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        border: 1px solid #e9ecef;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        font-size: 12px;
+    }
+
+    .legend-color {
+        width: 16px;
+        height: 16px;
+        margin-right: 5px;
+        border-radius: 3px;
+        border: 1px solid rgba(0,0,0,0.1);
+    }
+
+    /* Detailed view styles */
+    .day-container {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 15px;
+        margin-bottom: 20px;
+        background-color: #f9f9f9;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .day-container h4 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: #333;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 10px;
+        font-weight: 600;
+    }
+
+    .lesson-row {
+        background-color: #fff;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+
+    .lesson-row:hover {
+        background-color: #f5f5f5;
+    }
+
+    /* Modal styles */
+    .modal-content {
+        border-radius: 6px;
+        box-shadow: 0 5px 15px rgba(0,0,0,.5);
+    }
+
+    .modal-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+        border-radius: 6px 6px 0 0;
+    }
+
+    .modal-title {
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .modal-body {
+        padding: 20px;
+    }
+
+    .modal-footer {
+        background-color: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+        border-radius: 0 0 6px 6px;
+    }
+
+    /* Toggle button styles */
+    #toggleCalendarView {
+        background-color: #007bff;
+        border-color: #007bff;
+        transition: all 0.2s ease;
+    }
+
+    #toggleCalendarView:hover {
+        background-color: #0069d9;
+        border-color: #0062cc;
+    }
+
+    /* Panel styles */
+    .panel {
+        border-radius: 6px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+
+    .panel-heading {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+        padding: 12px 15px;
+        border-radius: 6px 6px 0 0;
+    }
+
+    .panel-title {
+        font-weight: 600;
+        color: #495057;
+        margin: 0;
+    }
+
+    .panel-body {
+        padding: 15px;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .calendar-table {
+            font-size: 10px;
+        }
+        
+        .time-cell, .time-header {
+            width: 80px;
+        }
+        
+        .day-header {
+            width: 30px;
+        }
+        
+        #currentMonthDisplay {
+            font-size: 16px;
+            min-width: 120px;
+        }
+    }
+</style>
+{% endblock %}

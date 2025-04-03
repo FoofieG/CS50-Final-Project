@@ -5,13 +5,37 @@
 {% endblock %}
 
 {% block main %}
-    <form action="/login" method="post">
-        <div class="mb-3">
-            <input autocomplete="off" autofocus class="form-control mx-auto w-auto" name="username" placeholder="Username" type="text">
-        </div>
-        <div class="mb-3">
-            <input class="form-control mx-auto w-auto" name="password" placeholder="Password" type="password">
-        </div>
-        <button class="btn btn-primary" type="submit">Log In</button>
-    </form>
-{% endblock %}
+    <div class="container login-container">
+        <form action="/login" method="post" class="login-form">
+            <h2 class="text-center">Login</h2>
+
+            {% with messages = get_flashed_messages(with_categories=True) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        {% if category == 'success' %}
+                            <p class="flash-message success">{{ message }}</p>
+                        {% elif category == 'danger' %}
+                            <p class="flash-message danger">{{ message }}</p>
+                        {% elif category == 'info' %}
+                            <p class="flash-message info">{{ message }}</p>
+                        {% elif category == 'warning' %}
+                            <p class="flash-message warning">{{ message }}</p>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <br>
+
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" class="form-control" id="username" name="username" placeholder="Enter username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Log In</button>
+        </form>
+    </div>
+{% endblock %}  

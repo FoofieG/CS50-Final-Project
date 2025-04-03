@@ -1,0 +1,115 @@
+<div class="container">
+    <h2>Profile Settings</h2>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="panel panel-primary">
+                <div class="panel-heading">
+                    <h3 class="panel-title">Edit Your Profile</h3>
+                </div>
+                <div class="panel-body">
+                    <form action="/settings" method="post" enctype="multipart/form-data">
+                        <!-- Profile Picture Section -->
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="form-group text-center">
+                                    <label>Profile Picture</label>
+                                    <div style="margin: 10px 0;">
+                                        {% if user.profile_picture %}
+                                            <img src="{{ user.profile_picture }}" alt="Profile" class="img-circle" style="width: 150px; height: 150px; object-fit: cover; border: 1px solid #ddd;">
+                                        {% else %}
+                                            <div class="img-circle" style="width: 150px; height: 150px; background-color: #ccc; display: flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 48px;">
+                                                <span>{{ user.username[0].upper() }}</span>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="profile_picture">Upload New Picture</label>
+                                        <input type="file" id="profile_picture" name="profile_picture" accept="image/*">
+                                        <p class="help-block">Allowed formats: JPG, JPEG, PNG, GIF</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-9">
+                                <div class="form-group">
+                                    <label for="username">Username:</label>
+                                    <input type="text" class="form-control" id="username" value="{{ user.username }}" disabled>
+                                    <small class="text-muted">Username cannot be changed</small>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="name">First Name:</label>
+                                            <input type="text" class="form-control" id="name" value="{{ user.name or '' }}" disabled>
+                                            <small class="text-muted">Name cannot be changed</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="surname">Last Name:</label>
+                                            <input type="text" class="form-control" id="surname" value="{{ user.surname or '' }}" disabled>
+                                            <small class="text-muted">Last name cannot be changed</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="email">Email:</label>
+                                            <input type="email" class="form-control" id="email" name="email" value="{{ user.email or '' }}">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="phone">Phone:</label>
+                                            <input type="tel" class="form-control" id="phone" name="phone" value="{{ user.phone or '' }}">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="birthday">Birthday:</label>
+                                            <input type="date" class="form-control" id="birthday" name="birthday" value="{{ user.birthday or '' }}">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="ski_type">Ski Type:</label>
+                                            <select class="form-control" id="ski_type" name="ski_type">
+                                                <option value="">Select Ski Type</option>
+                                                <option value="Skis" {% if user.ski_type == 'Skis' %}selected{% endif %}>Skis</option>
+                                                <option value="Snowboard" {% if user.ski_type == 'Snowboard' %}selected{% endif %}>Snowboard</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {% if user.role == 'instructor' or user.role == 'admin' %}
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="hourly_rate">Hourly Rate ($):</label>
+                                            <input type="text" class="form-control" id="hourly_rate" value="{{ user.hourly_rate or '0.00' }}" disabled>
+                                            <small class="text-muted">Hourly rate can only be changed by an owner</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-success">Save Changes</button>
+                            <a href="/" class="btn btn-default">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

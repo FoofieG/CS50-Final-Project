@@ -1,0 +1,166 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Book a Lesson
+{% endblock %}
+
+{% block main %}
+<div class="container">
+    <h1 class="mb-4">Book a Ski Lesson</h1>
+    
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title">Select Instructor and Time</h3>
+        </div>
+        <div class="panel-body">
+            <form action="/customer/book_lesson" method="post" id="bookingForm">
+                <div class="form-group">
+                    <label for="instructor_id">Select Instructor</label>
+                    <select class="form-control" id="instructor_id" name="instructor_id" required>
+                        <option value="">Choose an instructor</option>
+                        {% for instructor in instructors %}
+                            <option value="{{ instructor.id }}" data-rate="{{ instructor.hourly_rate }}">
+                                {% if instructor.name and instructor.surname %}
+                                    {{ instructor.name }} {{ instructor.surname }}
+                                {% else %}
+                                    {{ instructor.username }}
+                                {% endif %}
+                                {% if instructor.hourly_rate > 0 %}
+                                    (${{ instructor.hourly_rate }}/hour)
+                                {% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="date">Select Date</label>
+                    <select class="form-control" id="date" name="date" required>
+                        <option value="">Choose a date</option>
+                        {% for date in available_dates %}
+                            <option value="{{ date.date }}">{{ date.display }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group" id="timeSlotGroup" style="display: none;">
+                    <label for="time_slot">Select Time Slot</label>
+                    <select class="form-control" id="time_slot" name="time_slot" required>
+                        <option value="">Loading available times...</option>
+                    </select>
+                </div>
+                
+                <input type="hidden" id="start_time" name="start_time">
+                <input type="hidden" id="end_time" name="end_time">
+                
+                <div class="form-group">
+                    <label for="notes">Notes (Optional)</label>
+                    <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Any special requests or information for the instructor"></textarea>
+                </div>
+                
+                <div class="alert alert-info" id="priceEstimate" style="display: none;">
+                    <strong>Estimated Price:</strong> <span id="priceValue">$0.00</span>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" id="bookButton" disabled>Book Lesson</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        // When instructor and date are selected, fetch available times
+        $('#instructor_id, #date').change(function() {
+            var instructorId = $('#instructor_id').val();
+            var date = $('#date').val();
+            
+            // Reset time slot selection
+            $('#timeSlotGroup').hide();
+            $('#time_slot').empty().append('<option value="">Loading available times...</option>');
+            $('#start_time').val('');
+            $('#end_time').val('');
+            $('#bookButton').prop('disabled', true);
+            $('#priceEstimate').hide();
+            
+            // If both instructor and date are selected, fetch available times
+            if (instructorId && date) {
+                $.ajax({
+                    url: '/customer/get_available_times',
+                    type: 'GET',
+                    data: {
+                        instructor_id: instructorId,
+                        date: date
+                    },
+                    dataType: 'json',
+                    success: function(data) {
+                        $('#time_slot').empty();
+                        
+                        if (data.available_times && data.available_times.length > 0) {
+                            $('#time_slot').append('<option value="">Select a time slot</option>');
+                            
+                            $.each(data.available_times, function(index, time) {
+                                $('#time_slot').append(
+                                    $('<option></option>')
+                                        .attr('value', time.start_time + '|' + time.end_time)
+                                        .text(time.display)
+                                );
+                            });
+                            
+                            $('#timeSlotGroup').show();
+                        } else {
+                            $('#time_slot').append('<option value="">No available times</option>');
+                            $('#timeSlotGroup').show();
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error fetching available times:', error);
+                        console.error('Status:', status);
+                        console.error('Response:', xhr.responseText);
+                        
+                        $('#time_slot').empty().append('<option value="">Error loading times. Please try again.</option>');
+                        $('#timeSlotGroup').show();
+                    }
+                });
+            }
+        });
+        
+        // When time slot is selected, update hidden fields and enable book button
+        $('#time_slot').change(function() {
+            var timeSlot = $(this).val();
+            
+            if (timeSlot) {
+                var times = timeSlot.split('|');
+                $('#start_time').val(times[0]);
+                $('#end_time').val(times[1]);
+                $('#bookButton').prop('disabled', false);
+                
+                // Calculate and show price estimate
+                var instructorId = $('#instructor_id').val();
+                var hourlyRate = parseFloat($('#instructor_id option:selected').data('rate')) || 0;
+                
+                if (hourlyRate > 0) {
+                    // Calculate duration in hours
+                    var startParts = times[0].split(':');
+                    var endParts = times[1].split(':');
+                    var startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
+                    var endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+                    var durationHours = (endMinutes - startMinutes) / 60;
+                    
+                    // Calculate price
+                    var price = hourlyRate * durationHours;
+                    $('#priceValue').text('$' + price.toFixed(2));
+                    $('#priceEstimate').show();
+                } else {
+                    $('#priceEstimate').hide();
+                }
+            } else {
+                $('#start_time').val('');
+                $('#end_time').val('');
+                $('#bookButton').prop('disabled', true);
+                $('#priceEstimate').hide();
+            }
+        });
+    });
+</script>
+{% endblock %}

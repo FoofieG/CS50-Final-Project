@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Delete User
+{% endblock %}
+
+{% block main %}
+    <h1>Delete User</h1>
+
+    <form action="/owner/delete_user" method="POST">
+        <div class="form-group">
+            <label for="username">Username to delete:</label>
+            <input type="text" class="form-control" id="username" name="username" placeholder="Enter username">
+        </div>
+        <button type="submit" class="btn btn-danger">Delete User</button>
+    </form>
+
+{% endblock %}

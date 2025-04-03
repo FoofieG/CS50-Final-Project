@@ -1,0 +1,116 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    My Lessons
+{% endblock %}
+
+{% block main %}
+<div class="container">
+    <h1 class="mb-4">My Ski Lessons</h1>
+    
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title">Upcoming Lessons</h3>
+        </div>
+        <div class="panel-body">
+            {% if upcoming_lessons %}
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Instructor</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lesson in upcoming_lessons %}
+                            <tr>
+                                <td>{{ lesson.lesson_date }}</td>
+                                <td>{{ lesson.start_time }} - {{ lesson.end_time }}</td>
+                                <td>
+                                    {% if lesson.instructor_name and lesson.instructor_surname %}
+                                        {{ lesson.instructor_name }} {{ lesson.instructor_surname }}
+                                    {% else %}
+                                        {{ lesson.instructor_username }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="label label-success">{{ lesson.status|capitalize }}</span>
+                                </td>
+                                <td>
+                                    <form action="/customer/cancel_lesson" method="post" style="display: inline;">
+                                        <input type="hidden" name="lesson_id" value="{{ lesson.id }}">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to cancel this lesson?')">
+                                            <span class="glyphicon glyphicon-remove"></span> Cancel
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="alert alert-info">You don't have any upcoming lessons. <a href="/customer/book_lesson">Book a lesson</a> to get started!</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="panel panel-default mt-4">
+        <div class="panel-heading">
+            <h3 class="panel-title">Past Lessons</h3>
+        </div>
+        <div class="panel-body">
+            {% if past_lessons %}
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Instructor</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lesson in past_lessons %}
+                            <tr>
+                                <td>{{ lesson.lesson_date }}</td>
+                                <td>{{ lesson.start_time }} - {{ lesson.end_time }}</td>
+                                <td>
+                                    {% if lesson.instructor_name and lesson.instructor_surname %}
+                                        {{ lesson.instructor_name }} {{ lesson.instructor_surname }}
+                                    {% else %}
+                                        {{ lesson.instructor_username }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if lesson.status == 'completed' %}
+                                        <span class="label label-success">Completed</span>
+                                    {% elif lesson.status == 'cancelled' %}
+                                        <span class="label label-danger">Cancelled</span>
+                                    {% elif lesson.status == 'no-show' %}
+                                        <span class="label label-warning">No-Show</span>
+                                    {% else %}
+                                        <span class="label label-default">{{ lesson.status|capitalize }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="alert alert-info">You don't have any past lessons.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <a href="/customer/book_lesson" class="btn btn-primary">
+                <span class="glyphicon glyphicon-plus"></span> Book a New Lesson
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,399 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Admin Dashboard
+{% endblock %}
+
+{% block main %}
+<div class="container">
+    <h1 class="mb-4">Admin Dashboard</h1>
+    
+    <!-- My Schedule Calendar -->
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title">
+                My Work Schedule
+                <div class="pull-right">
+                    <button class="btn btn-xs btn-default" id="prevMonth">&lt; Prev</button>
+                    <span id="currentMonthDisplay">{{ current_month }}</span>
+                    <button class="btn btn-xs btn-default" id="nextMonth">Next &gt;</button>
+                </div>
+            </h3>
+        </div>
+        <div class="panel-body">
+            <div id="adminCalendar" class="table-responsive">
+                <!-- Calendar will be loaded here -->
+                <div class="text-center">Loading calendar...</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Pending Time Requests -->
+    <div class="panel panel-default mt-4">
+        <div class="panel-heading">
+            <h3 class="panel-title">Pending Time Requests</h3>
+        </div>
+        <div class="panel-body">
+            {% if pending_time_requests %}
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Instructor</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Type</th>
+                            <th>Submitted</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for request in pending_time_requests %}
+                            <tr>
+                                <td>{{ request.instructor_name }}</td>
+                                <td>{{ request.request_date }}</td>
+                                <td>{{ request.start_time }} - {{ request.end_time }}</td>
+                                <td>
+                                    {% if request.request_type == 'open' %}
+                                        <span class="label label-success">Open</span>
+                                    {% else %}
+                                        <span class="label label-danger">Close</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ request.created_at }}</td>
+                                <td>
+                                    <a href="/admin/manage_time_requests?id={{ request.id }}" class="btn btn-xs btn-primary">Review</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <a href="/admin/manage_time_requests" class="btn btn-primary">View All Time Requests</a>
+            {% else %}
+                <div class="alert alert-info">No pending time requests.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Upcoming Lessons -->
+    <div class="panel panel-default mt-4">
+        <div class="panel-heading">
+            <h3 class="panel-title">Upcoming Lessons</h3>
+        </div>
+        <div class="panel-body">
+            {% if upcoming_lessons %}
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Customer</th>
+                            <th>Instructor</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lesson in upcoming_lessons %}
+                            <tr>
+                                <td>{{ lesson.lesson_date }}</td>
+                                <td>{{ lesson.start_time }} - {{ lesson.end_time }}</td>
+                                <td>{{ lesson.customer_name }}</td>
+                                <td>{{ lesson.instructor_name }}</td>
+                                <td>
+                                    {% if lesson.status == 'booked' %}
+                                        <span class="label label-success">Booked</span>
+                                    {% elif lesson.status == 'cancelled' %}
+                                        <span class="label label-danger">Cancelled</span>
+                                    {% else %}
+                                        <span class="label label-default">{{ lesson.status }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <a href="/admin/lesson_calendar" class="btn btn-primary">View Full Lesson Calendar</a>
+            {% else %}
+                <div class="alert alert-info">No upcoming lessons.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        // Calendar functionality
+        var currentYear = {{ current_year }};
+        var currentMonth = {{ current_month_num }};
+        
+        // Load calendar for current month on page load
+        renderCalendar();
+        
+        // Previous month button
+        $('#prevMonth').click(function() {
+            currentMonth--;
+            if (currentMonth < 1) {
+                currentMonth = 12;
+                currentYear--;
+            }
+            loadCalendar(currentYear, currentMonth);
+        });
+        
+        // Next month button
+        $('#nextMonth').click(function() {
+            currentMonth++;
+            if (currentMonth > 12) {
+                currentMonth = 1;
+                currentYear++;
+            }
+            loadCalendar(currentYear, currentMonth);
+        });
+        
+        // Function to load calendar via AJAX
+        function loadCalendar(year, month) {
+            $('#adminCalendar').html('<div class="text-center">Loading calendar...</div>');
+            
+            $.ajax({
+                url: '/admin/get_my_calendar',
+                type: 'GET',
+                data: {
+                    year: year,
+                    month: month
+                },
+                dataType: 'json',
+                success: function(data) {
+                    renderCalendarWithData(data);
+                },
+                error: function(xhr, status, error) {
+                    console.error("AJAX error:", error);
+                    $('#adminCalendar').html('<div class="alert alert-danger">Error loading calendar: ' + error + '</div>');
+                }
+            });
+        }
+        
+        // Function to render calendar with initial data
+        function renderCalendar() {
+            var initialData = {
+                schedules: {{ admin_schedules|tojson|safe }},
+                all_admin_schedules: {{ all_admin_schedules|tojson|safe }},
+                lessons: {{ lessons|tojson|safe }},
+                working_hours: {{ hours_by_day|tojson|safe }},
+                year: currentYear,
+                month: currentMonth,
+                admin_name: "{{ current_user.username }}",
+                admin_id: {{ current_user.id }}
+            };
+            
+            renderCalendarWithData(initialData);
+        }
+        
+        // Function to render calendar with provided data
+        function renderCalendarWithData(data) {
+            var monthNames = ["January", "February", "March", "April", "May", "June",
+                             "July", "August", "September", "October", "November", "December"];
+            
+            // Update month display
+            $('#currentMonthDisplay').text(monthNames[data.month-1] + ' ' + data.year);
+            
+            // Create table
+            var table = $('<table class="table table-bordered calendar-table"></table>');
+            
+            // Get days in month
+            var daysInMonth = new Date(data.year, data.month, 0).getDate();
+            
+            // Create header row with days
+            var headerRow = $('<tr></tr>');
+            headerRow.append('<th class="week-header"></th>'); // Empty corner cell
+            
+            // Add day columns
+            for (var day = 1; day <= daysInMonth; day++) {
+                var date = new Date(data.year, data.month-1, day);
+                var dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
+                headerRow.append('<th class="day-header">' + day + '<br>' + dayOfWeek + '</th>');
+            }
+            
+            table.append(headerRow);
+            
+            // Create a single row for the admin's schedule
+            var scheduleRow = $('<tr></tr>');
+            scheduleRow.append('<td class="admin-name"><strong>My Schedule</strong></td>');
+            
+            // Add cells for each day
+            for (var day = 1; day <= daysInMonth; day++) {
+                var dateStr = data.year + '-' + 
+                             (data.month < 10 ? '0' + data.month : data.month) + '-' + 
+                             (day < 10 ? '0' + day : day);
+                
+                var cell = $('<td class="schedule-cell"></td>');
+                
+                // Check if school is closed on this day
+                var jsDate = new Date(data.year, data.month-1, day);
+                var dayOfWeekIndex = jsDate.getDay(); // 0 = Sunday, 6 = Saturday
+                dayOfWeekIndex = dayOfWeekIndex === 0 ? 6 : dayOfWeekIndex - 1; // Convert to our format
+                
+                if (data.working_hours[dayOfWeekIndex] && !data.working_hours[dayOfWeekIndex].is_open) {
+                    // School is closed
+                    cell.addClass('bg-danger').html('<strong>CLOSED</strong>');
+                } else {
+                    // Check if admin works on this day
+                    var mySchedule = findSchedule(dateStr, data.schedules);
+                    
+                    if (mySchedule) {
+                        // Admin works this day
+                        cell.addClass('bg-success');
+                        
+                        // Create a container for the schedule and lessons
+                        var scheduleContainer = $('<div class="schedule-container"></div>');
+                        scheduleContainer.append('<div class="schedule-time">' + mySchedule.start_time + ' - ' + mySchedule.end_time + '</div>');
+                        
+                        // Check if there are lessons on this day
+                        var dayLessons = findLessonsForDate(dateStr, data.lessons);
+                        if (dayLessons.length > 0) {
+                            var lessonsList = $('<div class="lessons-list"></div>');
+                            dayLessons.forEach(function(lesson) {
+                                lessonsList.append('<div class="lesson-item" title="' + lesson.customer_name + ' with ' + lesson.instructor_name + '">' + 
+                                                  lesson.start_time + '-' + lesson.end_time + '</div>');
+                            });
+                            scheduleContainer.append(lessonsList);
+                        }
+                        
+                        cell.append(scheduleContainer);
+                    } else {
+                        // Admin doesn't work, check if other admins work
+                        var otherAdmins = findOtherAdminsWorking(dateStr, data.all_admin_schedules, data.admin_id);
+                        
+                        if (otherAdmins.length > 0) {
+                            // Other admins are working
+                            var adminNames = otherAdmins.map(function(admin) {
+                                return admin.admin_name;
+                            }).join(', ');
+                            
+                            cell.addClass('bg-warning').html(
+                                '<small>' + adminNames + '</small>'
+                            );
+                        } else {
+                            cell.html('Off');
+                        }
+                    }
+                }
+                
+                scheduleRow.append(cell);
+            }
+            
+            table.append(scheduleRow);
+            
+            // Add table to container
+            $('#adminCalendar').html(table);
+        }
+        
+        // Helper function to find schedule for a specific date
+        function findSchedule(date, schedules) {
+            if (!schedules || !Array.isArray(schedules)) {
+                return null;
+            }
+            
+            for (var i = 0; i < schedules.length; i++) {
+                if (schedules[i].work_date === date) {
+                    return schedules[i];
+                }
+            }
+            return null;
+        }
+        
+        // Helper function to find other admins working on a specific date
+        function findOtherAdminsWorking(date, allSchedules, currentAdminId) {
+            if (!allSchedules || !Array.isArray(allSchedules)) {
+                return [];
+            }
+            
+            return allSchedules.filter(function(schedule) {
+                return schedule.work_date === date && schedule.admin_id !== currentAdminId;
+            });
+        }
+        
+        // Helper function to find lessons for a specific date
+        function findLessonsForDate(date, lessons) {
+            if (!lessons || !Array.isArray(lessons)) {
+                return [];
+            }
+            
+            return lessons.filter(function(lesson) {
+                return lesson.lesson_date === date;
+            });
+        }
+    });
+</script>
+
+<style>
+    /* Calendar styles */
+    .calendar-table {
+        table-layout: fixed;
+        width: 100%;
+    }
+    
+    .day-header {
+        width: 40px;
+        text-align: center;
+        font-size: 12px;
+        vertical-align: middle;
+    }
+    
+    .week-header {
+        width: 100px;
+    }
+    
+    .admin-name {
+        width: 100px;
+        text-align: left;
+        vertical-align: middle;
+    }
+    
+    .schedule-cell {
+        height: 80px;
+        text-align: center;
+        vertical-align: top;
+        font-size: 11px;
+        padding: 2px;
+        overflow: hidden;
+    }
+    
+    .bg-danger {
+        background-color: #f2dede;
+    }
+    
+    .bg-success {
+        background-color: #dff0d8;
+    }
+    
+    .bg-warning {
+        background-color: #fcf8e3;
+    }
+    
+    .schedule-container {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .schedule-time {
+        font-weight: bold;
+        margin-bottom: 2px;
+    }
+    
+    .lessons-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    .lesson-item {
+        background-color: #337ab7;
+        color: white;
+        padding: 2px;
+        border-radius: 2px;
+        font-size: 10px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
+{% endblock %}
