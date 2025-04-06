@@ -1175,7 +1175,7 @@ def instructor_calendar():
     # Get time slots for dropdown
     time_slots = []
     start_time = datetime.strptime("08:00", "%H:%M")
-    end_time = datetime.strptime("20:00", "%H:%M")
+    end_time = datetime.strptime("23:00", "%H:%M")
     interval = timedelta(minutes=30)
     
     current_time = start_time
@@ -1415,33 +1415,37 @@ def admin_home():
     else:
         last_day = datetime(year, month + 1, 1).date() - timedelta(days=1)
     
-    # Get admin schedules for the current admin for the month
-    admin_schedules = db.execute(
+    # Get all admins
+    admins = db.execute(
         """
         SELECT 
-            id,
-            work_date,
-            start_time,
-            end_time
-        FROM admin_schedules
-        WHERE admin_id = ? AND work_date BETWEEN ? AND ?
-        ORDER BY work_date, start_time
+            u.id, 
+            u.username, 
+            ui.name, 
+            ui.surname
+        FROM users u
+        JOIN user_info ui ON u.id = ui.id
+        WHERE u.role IN ('admin', 'owner')
+        ORDER BY CASE WHEN u.id = ? THEN 0 ELSE 1 END, ui.name, ui.surname
         """,
-        current_user.id, first_day.strftime("%Y-%m-%d"), last_day.strftime("%Y-%m-%d")
+        current_user.id
     )
     
-    # Get schedules for all admins for the month (to show who else is working)
+    # Get schedules for all admins for the month
     all_admin_schedules = db.execute(
         """
         SELECT 
             a.id,
             a.admin_id,
             u.username as admin_name,
+            ui.name as admin_first_name,
+            ui.surname as admin_last_name,
             a.work_date,
             a.start_time,
             a.end_time
         FROM admin_schedules a
         JOIN users u ON a.admin_id = u.id
+        JOIN user_info ui ON u.id = ui.id
         WHERE a.work_date BETWEEN ? AND ?
         ORDER BY a.work_date, a.start_time
         """,
@@ -1500,7 +1504,7 @@ def admin_home():
         "admin/home.html",
         upcoming_lessons=upcoming_lessons,
         pending_time_requests=pending_time_requests,
-        admin_schedules=admin_schedules,
+        admins=admins,
         all_admin_schedules=all_admin_schedules,
         lessons=lessons,
         hours_by_day=hours_by_day,
@@ -1710,101 +1714,12 @@ def admin_time_requests():
         processed_requests=processed_requests
     )
 
-@app.route("/admin/lesson_calendar", methods=["GET"])
+@app.route("/admin/instructor_schedule", methods=["GET"])
 @login_required
-def admin_lesson_calendar():
-    """View all upcoming lessons in a calendar view"""
-    
-    # Ensure the current user is an admin or owner
-    if current_user.role not in ["admin", "owner"]:
-        flash("You don't have permission to access this page", "danger")
-        return redirect("/")
-    
-    # Get the week parameter (0 = current week, 1 = next week, etc.)
-    week_offset = request.args.get("week", "0")
-    try:
-        week_offset = int(week_offset)
-    except ValueError:
-        week_offset = 0
-    
-    # Calculate the start and end dates for the requested week
-    today = datetime.now().date()
-    start_of_week = today - timedelta(days=today.weekday())  # Monday of current week
-    start_date = start_of_week + timedelta(weeks=week_offset)
-    end_date = start_date + timedelta(days=6)  # Sunday of the week
-    
-    # Get all lessons for the selected week
-    lessons = db.execute(
-        """
-        SELECT 
-            lessons.id,
-            lessons.lesson_date,
-            lessons.start_time,
-            lessons.end_time,
-            lessons.status,
-            customer.username AS customer_username,
-            customer_info.name AS customer_name,
-            customer_info.surname AS customer_surname,
-            instructor.username AS instructor_username,
-            instructor_info.name AS instructor_name,
-            instructor_info.surname AS instructor_surname
-        FROM lessons
-        JOIN users AS customer ON lessons.customer_id = customer.id
-        JOIN user_info AS customer_info ON customer.id = customer_info.id
-        JOIN users AS instructor ON lessons.instructor_id = instructor.id
-        JOIN user_info AS instructor_info ON instructor.id = instructor_info.id
-        WHERE lessons.lesson_date BETWEEN ? AND ?
-        ORDER BY lessons.lesson_date, lessons.start_time
-        """,
-        start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
-    )
-    
-    # Process lessons for calendar display
-    calendar_data = {}
-    
-    # Initialize calendar data structure with empty lists for each day
-    for i in range(7):
-        day_date = start_date + timedelta(days=i)
-        calendar_data[day_date.strftime("%Y-%m-%d")] = []
-    
-    # Add lessons to calendar data
-    for lesson in lessons:
-        date = lesson["lesson_date"]
-        
-        # Convert times to datetime objects for easier processing
-        start_time = datetime.strptime(lesson["start_time"], "%H:%M").time()
-        end_time = datetime.strptime(lesson["end_time"], "%H:%M").time()
-        
-        # Add lesson to calendar data
-        calendar_data[date].append({
-            "id": lesson["id"],
-            "start_time": lesson["start_time"],
-            "end_time": lesson["end_time"],
-            "start_hour": start_time.hour,
-            "start_minute": start_time.minute,
-            "end_hour": end_time.hour,
-            "end_minute": end_time.minute,
-            "customer": f"{lesson['customer_name'] or ''} {lesson['customer_surname'] or ''}".strip() or lesson["customer_username"],
-            "instructor": f"{lesson['instructor_name'] or ''} {lesson['instructor_surname'] or ''}".strip() or lesson["instructor_username"],
-            "status": lesson["status"]
-        })
-    
-    # Format dates for display
-    formatted_dates = []
-    for i in range(7):
-        day_date = start_date + timedelta(days=i)
-        formatted_dates.append({
-            "date": day_date.strftime("%Y-%m-%d"),
-            "day_name": day_date.strftime("%A"),
-            "display": day_date.strftime("%b %d")
-        })
-    
-    return render_template(
-        "admin/lesson_calendar.html",
-        calendar_data=calendar_data,
-        dates=formatted_dates,
-        week_offset=week_offset
-    )
+def instructor_schedule():
+
+
+
 
 ########################### Owner routes ##################################
 
@@ -2018,8 +1933,8 @@ def get_all_admin_calendars():
         
         admins = db.execute(
             f"""
-            SELECT id, username 
-            FROM users 
+            SELECT id, name, surname, username
+            FROM user_info 
             WHERE id IN ({admin_ids_str}) 
             ORDER BY username
             """
@@ -2130,7 +2045,7 @@ def admin_schedule():
     
     # Get all admins
     admins = db.execute(
-        "SELECT id, username FROM users WHERE role = 'admin' OR role = 'owner' ORDER BY username"
+        "SELECT id, name, surname FROM user_info WHERE role = 'admin' OR role = 'owner' ORDER BY username"
     )
     
     # Get upcoming admin schedules
@@ -2154,7 +2069,7 @@ def admin_schedule():
     # Get time slots for dropdown
     time_slots = []
     start_time = datetime.strptime("08:00", "%H:%M")
-    end_time = datetime.strptime("20:00", "%H:%M")
+    end_time = datetime.strptime("23:00", "%H:%M")
     interval = timedelta(minutes=30)
     
     current_time = start_time

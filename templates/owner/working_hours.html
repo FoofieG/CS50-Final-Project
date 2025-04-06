@@ -1,13 +1,13 @@
 {% extends "layout.html" %}
 
 {% block title %}
-    Manage Working Hours
+Manage Working Hours
 {% endblock %}
 
 {% block main %}
 <div class="container">
     <h1 class="mb-4">Manage Ski School Working Hours</h1>
-    
+
     <div class="panel panel-default">
         <div class="panel-heading">
             <h3 class="panel-title">Set Working Hours</h3>
@@ -26,28 +26,48 @@
                         <option value="6">Sunday</option>
                     </select>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="open_time">Opening Time</label>
-                    <input type="time" class="form-control" id="open_time" name="open_time" value="09:00" required>
+                    <select class="form-control" id="open_time" name="open_time" required>
+                        {% for hour in range(24) %}
+                        {% for minute in [0, 30] %}
+                        {% set time_value = '{:02d}:{:02d}'.format(hour, minute) %}
+                        <option value="{{ time_value }}" {% if time_value=="09:00" %}selected{% endif %}>
+                            {{ time_value }}
+                        </option>
+                        {% endfor %}
+                        {% endfor %}
+                    </select>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="close_time">Closing Time</label>
-                    <input type="time" class="form-control" id="close_time" name="close_time" value="17:00" required>
+                    <select class="form-control" id="close_time" name="close_time" required>
+                        {% for hour in range(24) %}
+                        {% for minute in [0, 30] %}
+                        {% set time_value = '{:02d}:{:02d}'.format(hour, minute) %}
+                        <option value="{{ time_value }}" {% if time_value=="17:00" %}selected{% endif %}>
+                            {{ time_value }}
+                        </option>
+                        {% endfor %}
+                        {% endfor %}
+                        <!-- Add 24:00 as an option for midnight -->
+                        <option value="24:00">24:00</option>
+                    </select>
                 </div>
-                
+
                 <div class="checkbox">
                     <label>
                         <input type="checkbox" name="is_open" checked> Open on this day
                     </label>
                 </div>
-                
+
                 <button type="submit" class="btn btn-primary">Save Working Hours</button>
             </form>
         </div>
     </div>
-    
+
     <div class="panel panel-default mt-4">
         <div class="panel-heading">
             <h3 class="panel-title">Current Working Hours</h3>
@@ -64,23 +84,46 @@
                 </thead>
                 <tbody>
                     {% for day_index in range(7) %}
-                        {% set day = hours_by_day[day_index] %}
-                        <tr>
-                            <td>{{ day.name }}</td>
-                            <td>{{ day.open_time }}</td>
-                            <td>{{ day.close_time }}</td>
-                            <td>
-                                {% if day.is_open %}
-                                    <span class="label label-success">Open</span>
-                                {% else %}
-                                    <span class="label label-danger">Closed</span>
-                                {% endif %}
-                            </td>
-                        </tr>
+                    {% set day = hours_by_day[day_index] %}
+                    <tr>
+                        <td>{{ day.name }}</td>
+                        <td>{{ day.open_time }}</td>
+                        <td>{{ day.close_time }}</td>
+                        <td>
+                            {% if day.is_open %}
+                            <span class="label label-success">Open</span>
+                            {% else %}
+                            <span class="label label-danger">Closed</span>
+                            {% endif %}
+                        </td>
+                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script>
+    $(document).ready(function () {
+        // When a day is selected, update the time dropdowns with the current values for that day
+        $('#day').change(function () {
+            var dayIndex = $(this).val();
+
+            // Get the current working hours from the table
+            var openTime = $('tbody tr').eq(dayIndex).find('td').eq(1).text().trim();
+            var closeTime = $('tbody tr').eq(dayIndex).find('td').eq(2).text().trim();
+            var isOpen = $('tbody tr').eq(dayIndex).find('.label-success').length > 0;
+
+            // Set the form values
+            $('#open_time').val(openTime);
+            $('#close_time').val(closeTime);
+            $('input[name="is_open"]').prop('checked', isOpen);
+        });
+
+        // Trigger the change event to load the current day's values
+        $('#day').trigger('change');
+    });
+</script>
 {% endblock %}

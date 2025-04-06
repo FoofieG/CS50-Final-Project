@@ -1,14 +1,41 @@
 {% extends "layout.html" %}
 
 {% block title %}
-    Admin Work Schedule
+Admin Work Schedule
 {% endblock %}
 
 {% block main %}
 <div class="container">
     <h1 class="mb-4">Admin Work Schedule</h1>
-    
-    <div class="row">
+
+    <!-- Calendar Panel (Full Width) -->
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title">
+                Admin Schedule Calendar
+                <div class="pull-right">
+                    <button class="btn btn-xs btn-default" id="prevMonth">&lt; Prev</button>
+                    <span id="currentMonthDisplay">{{ current_month }}</span>
+                    <button class="btn btn-xs btn-default" id="nextMonth">Next &gt;</button>
+                </div>
+            </h3>
+        </div>
+        <div class="panel-body">
+            <div id="adminCalendar" class="table-responsive">
+                <!-- Calendar will be loaded here -->
+                <div class="text-center">Loading calendar...</div>
+            </div>
+            <div class="calendar-legend mt-3">
+                <div class="legend-item"><span class="legend-color bg-success"></span> Working</div>
+                <div class="legend-item"><span class="legend-color bg-default"></span> Not Working</div>
+                <div class="legend-item"><span class="legend-color bg-danger"></span> School Closed</div>
+                <div class="legend-item"><span class="legend-color today-marker"></span> Today</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form Panel -->
+    <div class="row mt-4">
         <div class="col-md-6">
             <div class="panel panel-default">
                 <div class="panel-heading">
@@ -21,81 +48,64 @@
                             <select class="form-control" id="admin_id" name="admin_id" required>
                                 <option value="">Select Admin</option>
                                 {% for admin in admins %}
-                                    <option value="{{ admin.id }}">{{ admin.username }}</option>
+                                <option value="{{ admin.id }}">{{ admin.name + " " + admin.surname}}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="work_date">Date:</label>
-                            <input type="date" class="form-control" id="work_date" name="work_date" required min="{{ today }}">
+                            <input type="date" class="form-control" id="work_date" name="work_date" required
+                                min="{{ today }}">
+                            <div class="working-hours-notice mt-2 small text-muted">
+                                Please select a date to see available working hours.
+                            </div>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="start_time">Start Time:</label>
                             <select class="form-control" id="start_time" name="start_time" required>
                                 <option value="">Select Start Time</option>
                                 {% for time in time_slots %}
-                                    <option value="{{ time }}">{{ time }}</option>
+                                <option value="{{ time }}">{{ time }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="end_time">End Time:</label>
                             <select class="form-control" id="end_time" name="end_time" required>
                                 <option value="">Select End Time</option>
                                 {% for time in time_slots %}
-                                    <option value="{{ time }}">{{ time }}</option>
+                                <option value="{{ time }}">{{ time }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        
+
                         <button type="submit" class="btn btn-primary">Add Schedule</button>
                     </form>
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-6">
             <div class="panel panel-default">
                 <div class="panel-heading">
-                    <h3 class="panel-title">
-                        Admin Calendar
-                        <div class="pull-right">
-                            <button class="btn btn-xs btn-default" id="prevMonth">&lt; Prev</button>
-                            <span id="currentMonthDisplay">{{ current_month }}</span>
-                            <button class="btn btn-xs btn-default" id="nextMonth">Next &gt;</button>
-                        </div>
-                    </h3>
+                    <h3 class="panel-title">Upcoming Admin Schedules</h3>
                 </div>
                 <div class="panel-body">
-                    <div id="adminCalendar" class="table-responsive">
-                        <!-- Calendar will be loaded here -->
-                        <div class="text-center">Loading calendar...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="panel panel-default mt-4">
-        <div class="panel-heading">
-            <h3 class="panel-title">Upcoming Admin Schedules</h3>
-        </div>
-        <div class="panel-body">
-            {% if schedules %}
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Admin</th>
-                            <th>Date</th>
-                            <th>Time</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for schedule in schedules %}
+                    {% if schedules %}
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Admin</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for schedule in schedules %}
                             <tr>
                                 <td>{{ schedule.admin_name }}</td>
                                 <td>{{ schedule.work_date }}</td>
@@ -103,183 +113,233 @@
                                 <td>
                                     <form action="/owner/delete_admin_schedule" method="post" style="display: inline;">
                                         <input type="hidden" name="schedule_id" value="{{ schedule.id }}">
-                                        <button type="submit" class="btn btn-xs btn-danger" onclick="return confirm('Are you sure you want to delete this schedule?');">Delete</button>
+                                        <button type="submit" class="btn btn-xs btn-danger"
+                                            onclick="return confirm('Are you sure you want to delete this schedule?');">Delete</button>
                                     </form>
                                 </td>
                             </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <div class="alert alert-info">No upcoming admin schedules.</div>
-            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="alert alert-info">No upcoming admin schedules.</div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-    $(document).ready(function() {
+    $(document).ready(function () {
         // Store working hours data from server
-        var workingHours = {{ working_hours|tojson|safe }};
-        
-        // When date is selected, set default times based on working hours
-        $('#work_date').change(function() {
-            var selectedDate = new Date($(this).val());
-            if (selectedDate) {
-                // Get day of week (0 = Sunday, 1 = Monday, etc.)
-                var dayOfWeek = selectedDate.getDay();
-                // Convert to our format (0 = Monday, 6 = Sunday)
-                dayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                
-                // Check if we have working hours for this day
-                if (workingHours[dayOfWeek] && workingHours[dayOfWeek].is_open) {
-                    // Set default start and end times based on working hours
-                    $('#start_time').val(workingHours[dayOfWeek].open_time);
-                    $('#end_time').val(workingHours[dayOfWeek].close_time);
-                }
+        var workingHours = {{ working_hours| tojson | safe}};
+
+    // When date is selected, set default times based on working hours
+    $('#work_date').change(function () {
+        var selectedDate = new Date($(this).val());
+        if (selectedDate) {
+            // Get day of week (0 = Sunday, 1 = Monday, etc.)
+            var dayOfWeek = selectedDate.getDay();
+            // Convert to our format (0 = Monday, 6 = Sunday)
+            dayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+            // Check if we have working hours for this day
+            if (workingHours[dayOfWeek] && workingHours[dayOfWeek].is_open) {
+                // Set default start and end times based on working hours
+                $('#start_time').val(workingHours[dayOfWeek].open_time);
+                $('#end_time').val(workingHours[dayOfWeek].close_time);
+
+                // Add helper text showing working hours
+                var dayName = selectedDate.toLocaleDateString('en-US', { weekday: 'long' });
+                var helperText = $('<div class="working-hours-helper text-info small mt-2"></div>');
+                helperText.text('Working hours for ' + dayName + ': ' + workingHours[dayOfWeek].open_time + ' - ' + workingHours[dayOfWeek].close_time);
+                $('.working-hours-notice').html(helperText);
+            } else {
+                // Show closed message
+                var dayName = selectedDate.toLocaleDateString('en-US', { weekday: 'long' });
+                var helperText = $('<div class="working-hours-helper text-danger small mt-2"></div>');
+                helperText.text('The school is closed on ' + dayName + '. Please select a different date.');
+                $('.working-hours-notice').html(helperText);
+
+                // Clear time selections
+                $('#start_time').val('');
+                $('#end_time').val('');
             }
-        });
-        
-        // Calendar functionality
-        var currentYear = {{ current_year }};
-        var currentMonth = {{ current_month_num }};
-        
-        // Load calendar for current month on page load
+        }
+    });
+
+    // Calendar functionality
+    var currentYear = {{ current_year }};
+    var currentMonth = {{ current_month_num }};
+
+    // Load calendar for current month on page load
+    loadCalendar(currentYear, currentMonth);
+
+    // Previous month button
+    $('#prevMonth').click(function () {
+        currentMonth--;
+        if (currentMonth < 1) {
+            currentMonth = 12;
+            currentYear--;
+        }
         loadCalendar(currentYear, currentMonth);
-        
-        // Previous month button
-        $('#prevMonth').click(function() {
-            currentMonth--;
-            if (currentMonth < 1) {
-                currentMonth = 12;
-                currentYear--;
-            }
-            loadCalendar(currentYear, currentMonth);
-        });
-        
-        // Next month button
-        $('#nextMonth').click(function() {
-            currentMonth++;
-            if (currentMonth > 12) {
-                currentMonth = 1;
-                currentYear++;
-            }
-            loadCalendar(currentYear, currentMonth);
-        });
-        
-        // Function to load calendar via AJAX
-        function loadCalendar(year, month) {
-            $('#adminCalendar').html('<div class="text-center">Loading calendar...</div>');
-            
-            $.ajax({
-                url: '/owner/get_all_admin_calendars',
-                type: 'GET',
-                data: {
-                    year: year,
-                    month: month
-                },
-                dataType: 'json',
-                success: function(data) {
-                    renderCalendarWithData(data);
-                },
-                error: function(xhr, status, error) {
-                    console.error("AJAX error:", error);
-                    $('#adminCalendar').html('<div class="alert alert-danger">Error loading calendar: ' + error + '</div>');
-                }
-            });
+    });
+
+    // Next month button
+    $('#nextMonth').click(function () {
+        currentMonth++;
+        if (currentMonth > 12) {
+            currentMonth = 1;
+            currentYear++;
         }
-        
-        // Function to render calendar with provided data
-        function renderCalendarWithData(data) {
-            var monthNames = ["January", "February", "March", "April", "May", "June",
-                             "July", "August", "September", "October", "November", "December"];
-            
-            // Update month display
-            $('#currentMonthDisplay').text(monthNames[data.month-1] + ' ' + data.year);
-            
-            // Check if we have any admins with schedules
-            if (!data.admins || data.admins.length === 0) {
-                $('#adminCalendar').html('<div class="alert alert-info">No admin schedules for this month. Use the form to add schedules.</div>');
-                return;
+        loadCalendar(currentYear, currentMonth);
+    });
+
+    // Function to load calendar via AJAX
+    function loadCalendar(year, month) {
+        $('#adminCalendar').html('<div class="text-center">Loading calendar...</div>');
+
+        $.ajax({
+            url: '/owner/get_all_admin_calendars',
+            type: 'GET',
+            data: {
+                year: year,
+                month: month
+            },
+            dataType: 'json',
+            success: function (data) {
+                renderCalendarWithData(data);
+            },
+            error: function (xhr, status, error) {
+                console.error("AJAX error:", error);
+                $('#adminCalendar').html('<div class="alert alert-danger">Error loading calendar: ' + error + '</div>');
             }
-            
-            // Create table
-            var table = $('<table class="table table-bordered calendar-table"></table>');
-            
-            // Get days in month
-            var daysInMonth = new Date(data.year, data.month, 0).getDate();
-            
-            // Create header row with days
-            var headerRow = $('<tr></tr>');
-            headerRow.append('<th class="admin-header">Admin</th>'); // Admin column header
-            
-            // Add day columns
+        });
+    }
+
+    // Function to render calendar with provided data
+    function renderCalendarWithData(data) {
+        var monthNames = ["January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"];
+
+        // Update month display
+        $('#currentMonthDisplay').text(monthNames[data.month - 1] + ' ' + data.year);
+
+        // Check if we have any admins with schedules
+        if (!data.admins || data.admins.length === 0) {
+            $('#adminCalendar').html('<div class="alert alert-info">No admin schedules for this month. Use the form to add schedules.</div>');
+            return;
+        }
+
+        // Get today's date for highlighting
+        var today = new Date();
+        var todayYear = today.getFullYear();
+        var todayMonth = today.getMonth() + 1; // JavaScript months are 0-based
+        var todayDate = today.getDate();
+        var isCurrentMonth = (todayMonth === data.month && todayYear === data.year);
+
+        // Create table
+        var table = $('<table class="table table-bordered calendar-table"></table>');
+
+        // Get days in month
+        var daysInMonth = new Date(data.year, data.month, 0).getDate();
+
+        // Create header row with days
+        var headerRow = $('<tr></tr>');
+        headerRow.append('<th class="admin-header">Admin</th>'); // Admin column header
+
+        // Add day columns
+        for (var day = 1; day <= daysInMonth; day++) {
+            var date = new Date(data.year, data.month - 1, day);
+            var dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
+
+            // Get day of week index (0 = Monday, 6 = Sunday)
+            var dayOfWeekIndex = date.getDay();
+            dayOfWeekIndex = dayOfWeekIndex === 0 ? 6 : dayOfWeekIndex - 1;
+
+            // Check if school is closed on this day
+            var headerClass = 'day-header';
+            if (data.working_hours[dayOfWeekIndex] && !data.working_hours[dayOfWeekIndex].is_open) {
+                headerClass += ' closed-day';
+            }
+
+            // Check if this is today
+            if (isCurrentMonth && day === todayDate) {
+                headerClass += ' today';
+            }
+
+            headerRow.append('<th class="' + headerClass + '">' + day + '<br>' + dayOfWeek + '</th>');
+        }
+
+        table.append(headerRow);
+
+        // Create a row for each admin
+        data.admins.forEach(function (admin) {
+            var adminRow = $('<tr></tr>');
+            var adminDisplayName = admin.name + ' ' + admin.surname ;
+            adminRow.append('<td class="admin-name"><strong>' + adminDisplayName + '</strong></td>');
+
+            // Add cells for each day
             for (var day = 1; day <= daysInMonth; day++) {
-                var date = new Date(data.year, data.month-1, day);
-                var dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
-                headerRow.append('<th class="day-header">' + day + '<br>' + dayOfWeek + '</th>');
-            }
-            
-            table.append(headerRow);
-            
-            // Create a row for each admin
-            data.admins.forEach(function(admin) {
-                var adminRow = $('<tr></tr>');
-                adminRow.append('<td class="admin-name"><strong>' + admin.username + '</strong></td>');
-                
-                // Add cells for each day
-                for (var day = 1; day <= daysInMonth; day++) {
-                    var dateStr = data.year + '-' + 
-                                 (data.month < 10 ? '0' + data.month : data.month) + '-' + 
-                                 (day < 10 ? '0' + day : day);
-                    
-                    var cell = $('<td class="schedule-cell"></td>');
-                    
-                    // Check if school is closed on this day
-                    var jsDate = new Date(data.year, data.month-1, day);
-                    var dayOfWeekIndex = jsDate.getDay(); // 0 = Sunday, 6 = Saturday
-                    dayOfWeekIndex = dayOfWeekIndex === 0 ? 6 : dayOfWeekIndex - 1; // Convert to our format
-                    
-                    if (data.working_hours[dayOfWeekIndex] && !data.working_hours[dayOfWeekIndex].is_open) {
-                        // School is closed
-                        cell.addClass('bg-danger').html('<strong>CLOSED</strong>');
+                var dateStr = data.year + '-' +
+                    (data.month < 10 ? '0' + data.month : data.month) + '-' +
+                    (day < 10 ? '0' + day : day);
+
+                // Determine cell class based on today's date
+                var cellClass = 'schedule-cell';
+                if (isCurrentMonth && day === todayDate) {
+                    cellClass += ' today-cell';
+                }
+
+                var cell = $('<td class="' + cellClass + '"></td>');
+
+                // Check if school is closed on this day
+                var jsDate = new Date(data.year, data.month - 1, day);
+                var dayOfWeekIndex = jsDate.getDay(); // 0 = Sunday, 6 = Saturday
+                dayOfWeekIndex = dayOfWeekIndex === 0 ? 6 : dayOfWeekIndex - 1; // Convert to our format
+
+                if (data.working_hours[dayOfWeekIndex] && !data.working_hours[dayOfWeekIndex].is_open) {
+                    // School is closed
+                    cell.addClass('bg-danger').html('<strong>CLOSED</strong>');
+                } else {
+                    // Check if admin works on this day
+                    var schedule = findSchedule(dateStr, admin.id, data.schedules);
+
+                    if (schedule) {
+                        // Admin works this day
+                        cell.addClass('bg-success').html(
+                            '<strong>' + schedule.start_time + ' - ' + schedule.end_time + '</strong>'
+                        );
                     } else {
-                        // Check if admin works on this day
-                        var schedule = findSchedule(dateStr, admin.id, data.schedules);
-                        
-                        if (schedule) {
-                            // Admin works this day
-                            cell.addClass('bg-success').html(
-                                '<strong>' + schedule.start_time + ' - ' + schedule.end_time + '</strong>'
-                            );
-                        } else {
-                            cell.html('Off');
-                        }
+                        // Admin doesn't work this day
+                        cell.addClass('bg-default').html('');
                     }
-                    
-                    adminRow.append(cell);
                 }
-                
-                table.append(adminRow);
-            });
-            
-            // Add table to container
-            $('#adminCalendar').html(table);
-        }
-        
-        // Helper function to find schedule for a specific date and admin
-        function findSchedule(date, adminId, schedules) {
-            if (!schedules || !Array.isArray(schedules)) {
-                return null;
+
+                adminRow.append(cell);
             }
-            
-            for (var i = 0; i < schedules.length; i++) {
-                if (schedules[i].work_date === date && schedules[i].admin_id === adminId) {
-                    return schedules[i];
-                }
-            }
+
+            table.append(adminRow);
+        });
+
+        // Add table to container
+        $('#adminCalendar').html(table);
+    }
+
+    // Helper function to find schedule for a specific date and admin
+    function findSchedule(date, adminId, schedules) {
+        if (!schedules || !Array.isArray(schedules)) {
             return null;
         }
+
+        for (var i = 0; i < schedules.length; i++) {
+            if (schedules[i].work_date === date && schedules[i].admin_id === adminId) {
+                return schedules[i];
+            }
+        }
+        return null;
+    }
     });
 </script>
 
@@ -288,42 +348,160 @@
     .calendar-table {
         table-layout: fixed;
         width: 100%;
+        border-collapse: separate;
+        border-spacing: 2px;
+        margin-bottom: 15px;
     }
-    
+
     .day-header {
-        width: 40px;
+        width: 50px;
         text-align: center;
         font-size: 12px;
         vertical-align: middle;
+        background-color: #f8f9fa;
+        padding: 5px 3px;
+        border-radius: 4px 4px 0 0;
     }
-    
+
+    .day-header.closed-day {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    /* Today styling */
+    .day-header.today {
+        background-color: #cff4fc;
+        color: #055160;
+        font-weight: bold;
+        box-shadow: inset 0 0 0 2px #0dcaf0;
+        position: relative;
+    }
+
+    .today-cell {
+        position: relative;
+        box-shadow: inset 0 0 0 2px #0dcaf0;
+        z-index: 1;
+    }
+
+    .today-marker {
+        background-color: #cff4fc;
+        border: 2px solid #0dcaf0;
+    }
+
     .admin-header {
-        width: 100px;
+        width: 120px;
         text-align: center;
         vertical-align: middle;
+        background-color: #f8f9fa;
+        padding: 8px;
+        border-radius: 4px 0 0 0;
     }
-    
+
     .admin-name {
-        width: 100px;
+        width: 120px;
         text-align: left;
         vertical-align: middle;
+        padding: 8px;
+        background-color: #f8f9fa;
+        border-right: 1px solid #dee2e6;
     }
-    
+
     .schedule-cell {
-        height: 40px;
+        height: 50px;
         text-align: center;
         vertical-align: middle;
-        font-size: 11px;
-        padding: 2px;
+        font-size: 10px;
+        padding: 4px;
         overflow: hidden;
+        border-radius: 2px;
+        transition: all 0.2s ease;
     }
-    
+
     .bg-danger {
-        background-color: #f2dede;
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
     }
-    
+
     .bg-success {
-        background-color: #dff0d8;
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+
+    .bg-default {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        color: #6c757d;
+    }
+
+    /* Calendar legend */
+    .calendar-legend {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 15px;
+        padding: 10px;
+        margin-top: 15px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        border: 1px solid #e9ecef;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        font-size: 12px;
+    }
+
+    .legend-color {
+        width: 16px;
+        height: 16px;
+        margin-right: 5px;
+        border-radius: 3px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 1200px) {
+        .day-header {
+            width: 35px;
+            padding: 3px 2px;
+        }
+
+        .admin-header,
+        .admin-name {
+            width: 100px;
+        }
+    }
+
+    @media (max-width: 992px) {
+        .calendar-table {
+            font-size: 10px;
+        }
+
+        .day-header {
+            width: 30px;
+            padding: 3px 1px;
+        }
+
+        .admin-header,
+        .admin-name {
+            width: 80px;
+        }
+    }
+
+    /* Spacing utilities */
+    .mt-2 {
+        margin-top: 10px;
+    }
+
+    .mt-3 {
+        margin-top: 15px;
+    }
+
+    .mt-4 {
+        margin-top: 20px;
     }
 </style>
 {% endblock %}

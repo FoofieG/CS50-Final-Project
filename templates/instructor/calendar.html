@@ -94,6 +94,7 @@
                     <div class="legend-item"><span class="legend-color bg-success"></span> Available</div>
                     <div class="legend-item"><span class="legend-color bg-danger"></span> Unavailable/Closed</div>
                     <div class="legend-item"><span class="legend-color bg-light"></span> Outside Working Hours</div>
+                    <div class="legend-item"><span class="legend-color today-marker"></span> Today</div>
                 </div>
             </div>
         </div>
@@ -376,6 +377,13 @@
                 // Get day of week index (0 = Monday, 6 = Sunday)
                 var dayOfWeekIndex = date.getDay();
                 dayOfWeekIndex = dayOfWeekIndex === 0 ? 6 : dayOfWeekIndex - 1;
+
+                // Check if this is today
+                var isToday = false;
+                if (isCurrentMonth && day === todayDate) {
+                    headerClass += ' today';
+                    isToday = true;
+                }
                 
                 // Check if school is closed on this day
                 if (data.working_hours[dayOfWeekIndex] && !data.working_hours[dayOfWeekIndex].is_open) {
@@ -417,6 +425,11 @@
                          (day < 10 ? '0' + day : day);
             
                     var cell = $('<td class="schedule-cell" data-date="' + dateStr + '" data-time="' + timeStr + '"></td>');
+
+                    // Highlight today's cells
+                    if (isToday) {
+                        cell.addClass('today-cell');
+                    }
                     
                     // Highlight today's cells
                     if (isCurrentMonth && day === todayDate) {
@@ -469,7 +482,7 @@
                             cell.append(lessonContent);
                         } else if (unavailability) {
                             // Instructor has requested time off
-                            cell.addClass('bg-danger');
+                            cell.addClass('bg-working-hours');
                         } else if (availability) {
                             // Instructor is available
                             cell.addClass('bg-success');
@@ -721,10 +734,10 @@
     }
 
     .day-header.today {
-        background-color: #d4edda;
-        color: #155724;
+        background-color: #cff4fc;
+        color: #055160;;
         font-weight: bold;
-        box-shadow: inset 0 0 0 2px #28a745;
+        box-shadow: inset 0 0 0 2px #0dcaf0;
     }
     
     .day-header.closed-day {
@@ -1023,5 +1036,26 @@
             min-width: 120px;
         }
     }
-</style>
+
+.today-cell {
+    position: relative;
+}
+
+.today-cell:after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 2px solid #0dcaf0;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.today-marker {
+    background-color: #cff4fc;
+    border: 2px solid #0dcaf0
+}
 {% endblock %}
+
