@@ -8,23 +8,6 @@
     <div class="container login-container">
         <form action="/login" method="post" class="login-form">
             <h2 class="text-center">Login</h2>
-
-            {% with messages = get_flashed_messages(with_categories=True) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        {% if category == 'success' %}
-                            <p class="flash-message success">{{ message }}</p>
-                        {% elif category == 'danger' %}
-                            <p class="flash-message danger">{{ message }}</p>
-                        {% elif category == 'info' %}
-                            <p class="flash-message info">{{ message }}</p>
-                        {% elif category == 'warning' %}
-                            <p class="flash-message warning">{{ message }}</p>
-                        {% endif %}
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-            
             <br>
 
             <div class="form-group">
@@ -36,6 +19,10 @@
                 <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" required>
             </div>
             <button type="submit" class="btn btn-primary btn-block">Log In</button>
+            <br>
+            <div class="text-center mt-3">
+                <a href="/reset_password_request">Forgot Password?</a>
+            </div>
         </form>
     </div>
 {% endblock %}  

@@ -1,13 +1,17 @@
 import os
 import time
 from cs50 import SQL
-from flask import Flask, flash, redirect, render_template, request, jsonify
+from flask import Flask, flash, redirect, render_template, request, jsonify, url_for
 from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from datetime import datetime, timedelta    
+from datetime import datetime, timedelta, date
 import json
+import secrets
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 # Configure application
 app = Flask(__name__)
@@ -197,7 +201,56 @@ def settings():
         return redirect("/logout")
     
     return render_template(template, user=user_info)
+
+@app.route("/change-password", methods=["POST"])
+@login_required
+def change_password():
+    """Allow users to change their password"""
     
+    # Get form data
+    current_password = request.form.get("current_password")
+    new_password = request.form.get("new_password")
+    confirm_password = request.form.get("confirm_password")
+    
+    # Validate input
+    if not current_password or not new_password or not confirm_password:
+        flash("All password fields are required", "danger")
+        return redirect("/settings")
+    
+    # Check if new password and confirmation match
+    if new_password != confirm_password:
+        flash("New password and confirmation do not match", "danger")
+        return redirect("/settings")
+    
+    # Check password length
+    if len(new_password) < 8:
+        flash("Password must be at least 8 characters long", "danger")
+        return redirect("/settings")
+    
+    # Get the user's current password hash
+    user = db.execute("SELECT hash FROM users WHERE id = ?", current_user.id)
+    
+    if not user:
+        flash("User not found", "danger")
+        return redirect("/settings")
+    
+    # Verify current password
+    if not check_password_hash(user[0]["hash"], current_password):
+        flash("Current password is incorrect", "danger")
+        return redirect("/settings")
+    
+    # Generate hash for new password
+    new_hash = generate_password_hash(new_password)
+    
+    try:
+        # Update password in database
+        db.execute("UPDATE users SET hash = ? WHERE id = ?", new_hash, current_user.id)
+        flash("Your password has been updated successfully!", "success")
+    except Exception as e:
+        flash(f"Error updating password: {str(e)}", "danger")
+    
+    return redirect("/settings")
+
 ########################### Customer routes ##################################
 
 @app.route("/customer/book_lesson", methods=["GET", "POST"])
@@ -369,7 +422,7 @@ def customer_book_lesson():
             )
             """,
             instructor_id, date,
-            end_time, start_time,
+            start_time, start_time,
             end_time, end_time,
             start_time, end_time
         )
@@ -382,14 +435,14 @@ def customer_book_lesson():
         db.execute(
             """
             INSERT INTO lessons
-            (customer_id, instructor_id, lesson_date, start_time, end_time, notes)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (customer_id, instructor_id, lesson_date, start_time, end_time, notes, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'booked', datetime('now'))
             """,
             current_user.id, instructor_id, date, start_time, end_time, notes
         )
         
         flash("Lesson booked successfully", "success")
-        return redirect("/customer/book_lesson")
+        return redirect("/customer/my_lessons")
     
     # Get all instructors
     instructors = db.execute(
@@ -399,7 +452,6 @@ def customer_book_lesson():
             user_info.name, 
             user_info.surname, 
             users.username,
-            user_info.hourly_rate,
             user_info.profile_picture
         FROM users 
         JOIN user_info ON users.id = user_info.id
@@ -408,76 +460,509 @@ def customer_book_lesson():
         """
     )
     
-    # Get available dates (next 30 days)
-    available_dates = []
-    today = datetime.now().date()
-    
-    for i in range(30):
-        date = today + timedelta(days=i)
-        available_dates.append({
-            "date": date.strftime("%Y-%m-%d"),
-            "display": date.strftime("%A, %b %d, %Y")
-        })
-    
     return render_template(
         "customer/book_lesson.html",
-        instructors=instructors,
-        available_dates=available_dates
+        instructors=instructors
     )
 
-@app.route("/customer/cancel_lesson", methods=["POST"])
+@app.route("/customer/get_available_times_for_date", methods=["GET"])
 @login_required
-def cancel_lesson():
-    """Cancel a booked lesson"""
+def get_available_times_for_date():
+    """API endpoint to get available times for a specific date (any instructor)"""
     
     # Ensure the current user is a customer
     if current_user.role != "customer":
-        flash("You don't have permission to access this page", "danger")
-        return redirect("/")
+        return jsonify({"error": "Unauthorized"}), 403
     
-    lesson_id = request.form.get("lesson_id")
+    date = request.args.get("date")
     
-    if not lesson_id:
-        flash("Invalid request", "danger")
-        return redirect("/customer/my_lessons")
+    if not date:
+        return jsonify({"error": "Missing date parameter"}), 400
     
-    # Check if the lesson exists and belongs to the current user
-    lesson = db.execute(
+    # Get all instructors with open time requests for this date
+    instructors_with_open_times = db.execute(
         """
-        SELECT id, lesson_date, start_time 
-        FROM lessons 
-        WHERE id = ? AND customer_id = ? AND status = 'booked'
+        SELECT DISTINCT instructor_id
+        FROM time_requests
+        WHERE request_date = ?
+        AND status = 'approved'
+        AND request_type = 'open'
         """,
-        lesson_id, current_user.id
+        date
     )
     
-    if not lesson:
-        flash("Lesson not found or already cancelled", "danger")
-        return redirect("/customer/my_lessons")
+    # For each instructor, get their available time slots
+    all_available_times = []
     
-    # Check if the lesson is in the future
-    lesson_date = datetime.strptime(lesson[0]["lesson_date"], "%Y-%m-%d").date()
-    lesson_time = datetime.strptime(lesson[0]["start_time"], "%H:%M").time()
-    lesson_datetime = datetime.combine(lesson_date, lesson_time)
+    for instructor in instructors_with_open_times:
+        instructor_id = instructor["instructor_id"]
+        
+        # Get all approved time requests for this instructor on this date
+        time_requests = db.execute(
+            """
+            SELECT 
+                start_time, 
+                end_time,
+                request_type,
+                processed_at
+            FROM time_requests 
+            WHERE instructor_id = ? 
+            AND status = 'approved'
+            AND request_date = ?
+            ORDER BY processed_at
+            """,
+            instructor_id, date
+        )
+        
+        # Process time requests to determine open time ranges
+        open_ranges = []
+        
+        # Process each request in chronological order
+        for req in time_requests:
+            # Convert times to datetime objects for easier comparison
+            req_start = datetime.strptime(req["start_time"], "%H:%M").time()
+            req_end = datetime.strptime(req["end_time"], "%H:%M").time()
+            
+            if req["request_type"] == "open":
+                # Add this open time range
+                new_range = {"start": req_start, "end": req_end}
+                
+                # Check for overlaps with existing open ranges and merge if needed
+                i = 0
+                while i < len(open_ranges):
+                    existing = open_ranges[i]
+                    
+                    # If ranges overlap or are adjacent, merge them
+                    if (new_range["start"] <= existing["end"] and 
+                        new_range["end"] >= existing["start"]):
+                        
+                        new_range["start"] = min(new_range["start"], existing["start"])
+                        new_range["end"] = max(new_range["end"], existing["end"])
+                        
+                        # Remove the existing range as it's now merged into new_range
+                        open_ranges.pop(i)
+                    else:
+                        i += 1
+                
+                # Add the new (possibly merged) range
+                open_ranges.append(new_range)
+                
+                # Sort ranges by start time
+                open_ranges.sort(key=lambda x: x["start"])
+                
+            elif req["request_type"] == "close":
+                # Handle close request
+                close_start = req_start
+                close_end = req_end
+                
+                # Create a new list for the updated open ranges
+                updated_ranges = []
+                
+                for open_range in open_ranges:
+                    # Case 1: Close range completely covers open range - skip this open range
+                    if close_start <= open_range["start"] and close_end >= open_range["end"]:
+                        continue
+                    
+                    # Case 2: Close range is completely within open range - split into two
+                    elif close_start > open_range["start"] and close_end < open_range["end"]:
+                        updated_ranges.append({"start": open_range["start"], "end": close_start})
+                        updated_ranges.append({"start": close_end, "end": open_range["end"]})
+                    
+                    # Case 3: Close range overlaps with start of open range
+                    elif close_start <= open_range["start"] and close_end > open_range["start"] and close_end < open_range["end"]:
+                        updated_ranges.append({"start": close_end, "end": open_range["end"]})
+                    
+                    # Case 4: Close range overlaps with end of open range
+                    elif close_start > open_range["start"] and close_start < open_range["end"] and close_end >= open_range["end"]:
+                        updated_ranges.append({"start": open_range["start"], "end": close_start})
+                    
+                    # Case 5: No overlap - keep the open range as is
+                    else:
+                        updated_ranges.append(open_range)
+                
+                # Replace the open ranges with the updated ones
+                open_ranges = updated_ranges
+        
+        # Get existing lessons for this instructor on this date
+        existing_lessons = db.execute(
+            """
+            SELECT start_time, end_time
+            FROM lessons
+            WHERE instructor_id = ?
+            AND lesson_date = ?
+            AND status = 'booked'
+            ORDER BY start_time
+            """,
+            instructor_id, date
+        )
+        
+        # Remove times that are already booked
+        for lesson in existing_lessons:
+            lesson_start = datetime.strptime(lesson["start_time"], "%H:%M").time()
+            lesson_end = datetime.strptime(lesson["end_time"], "%H:%M").time()
+            
+            updated_ranges = []
+            
+            for open_range in open_ranges:
+                # Case 1: Lesson completely covers open range - skip this open range
+                if lesson_start <= open_range["start"] and lesson_end >= open_range["end"]:
+                    continue
+                
+                # Case 2: Lesson is completely within open range - split into two
+                elif lesson_start > open_range["start"] and lesson_end < open_range["end"]:
+                    updated_ranges.append({"start": open_range["start"], "end": lesson_start})
+                    updated_ranges.append({"start": lesson_end, "end": open_range["end"]})
+                
+                # Case 3: Lesson overlaps with start of open range
+                elif lesson_start <= open_range["start"] and lesson_end > open_range["start"] and lesson_end < open_range["end"]:
+                    updated_ranges.append({"start": lesson_end, "end": open_range["end"]})
+                
+                # Case 4: Lesson overlaps with end of open range
+                elif lesson_start > open_range["start"] and lesson_start < open_range["end"] and lesson_end >= open_range["end"]:
+                    updated_ranges.append({"start": open_range["start"], "end": lesson_start})
+                
+                # Case 5: No overlap - keep the open range as is
+                else:
+                    updated_ranges.append(open_range)
+            
+            # Replace the open ranges with the updated ones
+            open_ranges = updated_ranges
+        
+        # Create 1-hour slots within each open range
+        for open_range in open_ranges:
+            start = open_range["start"]
+            end = open_range["end"]
+            
+            # Convert to datetime for easier arithmetic
+            start_dt = datetime.combine(datetime.today(), start)
+            end_dt = datetime.combine(datetime.today(), end)
+            
+            # Create 1-hour slots
+            current = start_dt
+            while current + timedelta(hours=1) <= end_dt:
+                slot_start = current.time()
+                slot_end = (current + timedelta(hours=1)).time()
+                
+                # Format times for display
+                start_str = slot_start.strftime("%H:%M")
+                end_str = slot_end.strftime("%H:%M")
+                display = f"{slot_start.strftime('%I:%M %p')} - {slot_end.strftime('%I:%M %p')}"
+                
+                # Check if this time slot is already in the list
+                existing = next((t for t in all_available_times if t["start_time"] == start_str and t["end_time"] == end_str), None)
+                
+                if not existing:
+                    all_available_times.append({
+                        "start_time": start_str,
+                        "end_time": end_str,
+                        "display": display
+                    })
+                
+                current += timedelta(minutes=30)  # 30-minute increments
     
-    # Calculate cancellation policy (e.g., 24 hours in advance)
-    cancellation_deadline = datetime.now() + timedelta(hours=24)
+    # Sort by start time
+    all_available_times.sort(key=lambda x: x["start_time"])
     
-    if lesson_datetime < cancellation_deadline:
-        flash("Lessons must be cancelled at least 24 hours in advance", "danger")
-        return redirect("/customer/my_lessons")
+    return jsonify({"available_times": all_available_times})
+
+@app.route("/customer/get_available_instructors", methods=["GET"])
+@login_required
+def get_available_instructors():
+    """API endpoint to get available instructors for a specific date and time"""
     
-    # Update the lesson status to cancelled
-    db.execute(
-        "UPDATE lessons SET status = 'cancelled' WHERE id = ?",
-        lesson_id
+    # Ensure the current user is a customer
+    if current_user.role != "customer":
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    date = request.args.get("date")
+    start_time = request.args.get("start_time")
+    end_time = request.args.get("end_time")
+    
+    if not date or not start_time or not end_time:
+        return jsonify({"error": "Missing parameters"}), 400
+    
+    # Get all instructors
+    instructors = db.execute(
+        """
+        SELECT 
+            users.id, 
+            user_info.name, 
+            user_info.surname, 
+            users.username,
+            user_info.profile_picture
+        FROM users 
+        JOIN user_info ON users.id = user_info.id
+        WHERE users.role = 'instructor'
+        ORDER BY user_info.name, user_info.surname
+        """
     )
     
-    flash("Lesson cancelled successfully", "success")
-    return redirect("/customer/my_lessons")
+    available_instructors = []
+    
+    # Check each instructor's availability
+    for instructor in instructors:
+        # Get all approved time requests for this instructor on this date
+        time_requests = db.execute(
+            """
+            SELECT 
+                start_time, 
+                end_time,
+                request_type,
+                processed_at
+            FROM time_requests 
+            WHERE instructor_id = ? 
+            AND status = 'approved'
+            AND request_date = ?
+            ORDER BY processed_at
+            """,
+            instructor["id"], date
+        )
+        
+        # Process time requests to determine open time ranges
+        open_ranges = []
+        
+        # Process each request in chronological order
+        for req in time_requests:
+            # Convert times to datetime objects for easier comparison
+            req_start = datetime.strptime(req["start_time"], "%H:%M").time()
+            req_end = datetime.strptime(req["end_time"], "%H:%M").time()
+            
+            if req["request_type"] == "open":
+                # Add this open time range
+                new_range = {"start": req_start, "end": req_end}
+                
+                # Check for overlaps with existing open ranges and merge if needed
+                i = 0
+                while i < len(open_ranges):
+                    existing = open_ranges[i]
+                    
+                    # If ranges overlap or are adjacent, merge them
+                    if (new_range["start"] <= existing["end"] and 
+                        new_range["end"] >= existing["start"]):
+                        
+                        new_range["start"] = min(new_range["start"], existing["start"])
+                        new_range["end"] = max(new_range["end"], existing["end"])
+                        
+                        # Remove the existing range as it's now merged into new_range
+                        open_ranges.pop(i)
+                    else:
+                        i += 1
+                
+                # Add the new (possibly merged) range
+                open_ranges.append(new_range)
+                
+                # Sort ranges by start time
+                open_ranges.sort(key=lambda x: x["start"])
+                
+            elif req["request_type"] == "close":
+                # Handle close request
+                close_start = req_start
+                close_end = req_end
+                
+                # Create a new list for the updated open ranges
+                updated_ranges = []
+                
+                for open_range in open_ranges:
+                    # Case 1: Close range completely covers open range - skip this open range
+                    if close_start <= open_range["start"] and close_end >= open_range["end"]:
+                        continue
+                    
+                    # Case 2: Close range is completely within open range - split into two
+                    elif close_start > open_range["start"] and close_end < open_range["end"]:
+                        updated_ranges.append({"start": open_range["start"], "end": close_start})
+                        updated_ranges.append({"start": close_end, "end": open_range["end"]})
+                    
+                    # Case 3: Close range overlaps with start of open range
+                    elif close_start <= open_range["start"] and close_end > open_range["start"] and close_end < open_range["end"]:
+                        updated_ranges.append({"start": close_end, "end": open_range["end"]})
+                    
+                    # Case 4: Close range overlaps with end of open range
+                    elif close_start > open_range["start"] and close_start < open_range["end"] and close_end >= open_range["end"]:
+                        updated_ranges.append({"start": open_range["start"], "end": close_start})
+                    
+                    # Case 5: No overlap - keep the open range as is
+                    else:
+                        updated_ranges.append(open_range)
+                
+                # Replace the open ranges with the updated ones
+                open_ranges = updated_ranges
+        
+        # Get existing lessons for this instructor on this date
+        existing_lessons = db.execute(
+            """
+            SELECT start_time, end_time
+            FROM lessons
+            WHERE instructor_id = ?
+            AND lesson_date = ?
+            AND status = 'booked'
+            """,
+            instructor["id"], date
+        )
+        
+        # Check if the requested time slot is available
+        start_time_obj = datetime.strptime(start_time, "%H:%M").time()
+        end_time_obj = datetime.strptime(end_time, "%H:%M").time()
+        
+        # First check if the time is within an open range
+        is_in_open_range = False
+        for open_range in open_ranges:
+            if start_time_obj >= open_range["start"] and end_time_obj <= open_range["end"]:
+                is_in_open_range = True
+                break
+        
+        if not is_in_open_range:
+            continue  # Skip this instructor
+        
+        # Then check if there's no overlapping lesson
+        has_overlapping_lesson = False
+        for lesson in existing_lessons:
+            lesson_start = datetime.strptime(lesson["start_time"], "%H:%M").time()
+            lesson_end = datetime.strptime(lesson["end_time"], "%H:%M").time()
+            
+            # Check for overlap
+            if ((start_time_obj < lesson_end and end_time_obj > lesson_start) or
+                (start_time_obj >= lesson_start and end_time_obj <= lesson_end)):
+                has_overlapping_lesson = True
+                break
+        
+        if not has_overlapping_lesson:
+            available_instructors.append(instructor)
+    
+    return jsonify({"available_instructors": available_instructors})
 
+@app.route("/customer/get_instructor_available_dates", methods=["GET"])
+@login_required
+def get_instructor_available_dates():
+    """API endpoint to get available dates for a specific instructor"""
+    
+    # Ensure the current user is a customer
+    if current_user.role != "customer":
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    instructor_id = request.args.get("instructor_id")
+    year = request.args.get("year", datetime.now().year)
+    month = request.args.get("month", datetime.now().month)
+    
+    try:
+        year = int(year)
+        month = int(month)
+    except ValueError:
+        return jsonify({"error": "Invalid year or month"}), 400
+    
+    if not instructor_id:
+        return jsonify({"error": "Missing instructor_id parameter"}), 400
+    
+    # Get the first and last day of the requested month
+    first_day = datetime(year, month, 1).date()
+    
+    # Get the last day of the month
+    if month == 12:
+        last_day = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+    else:
+        last_day = datetime(year, month + 1, 1).date() - timedelta(days=1)
+    
+    # Format dates for SQL query
+    first_day_str = first_day.strftime("%Y-%m-%d")
+    last_day_str = last_day.strftime("%Y-%m-%d")
+    
+    # Get all dates with approved open time requests
+    dates_with_open_times = db.execute(
+        """
+        SELECT DISTINCT request_date
+        FROM time_requests
+        WHERE instructor_id = ?
+        AND status = 'approved'
+        AND request_type = 'open'
+        AND request_date BETWEEN ? AND ?
+        ORDER BY request_date
+        """,
+        instructor_id, first_day_str, last_day_str
+    )
+    
+    # Convert to list of date strings
+    available_dates = []
+    
+    for date_row in dates_with_open_times:
+        date_str = date_row["request_date"]
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+        
+        # Format for display
+        display_date = date_obj.strftime("%A, %b %d, %Y")
+        
+        available_dates.append({
+            "date": date_str,
+            "display": display_date,
+            "available": True
+        })
+    
+    return jsonify({"available_dates": available_dates})
 
-    """API endpoint to get available times for an instructor on a specific date"""
+@app.route("/customer/get_available_dates", methods=["GET"])
+@login_required
+def get_available_dates():
+    """API endpoint to get dates with available instructors"""
+    
+    # Ensure the current user is a customer
+    if current_user.role != "customer":
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    year = request.args.get("year", datetime.now().year)
+    month = request.args.get("month", datetime.now().month)
+    
+    try:
+        year = int(year)
+        month = int(month)
+    except ValueError:
+        return jsonify({"error": "Invalid year or month"}), 400
+    
+    # Get the first and last day of the requested month
+    first_day = datetime(year, month, 1).date()
+    
+    # Get the last day of the month
+    if month == 12:
+        last_day = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+    else:
+        last_day = datetime(year, month + 1, 1).date() - timedelta(days=1)
+    
+    # Format dates for SQL query
+    first_day_str = first_day.strftime("%Y-%m-%d")
+    last_day_str = last_day.strftime("%Y-%m-%d")
+    
+    # Get all dates with approved open time requests
+    dates_with_open_times = db.execute(
+        """
+        SELECT DISTINCT request_date
+        FROM time_requests
+        WHERE status = 'approved'
+        AND request_type = 'open'
+        AND request_date BETWEEN ? AND ?
+        ORDER BY request_date
+        """,
+        first_day_str, last_day_str
+    )
+    
+    # Convert to list of date strings
+    available_dates = []
+    
+    for date_row in dates_with_open_times:
+        date_str = date_row["request_date"]
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+        
+        # Format for display
+        display_date = date_obj.strftime("%A, %b %d, %Y")
+        
+        available_dates.append({
+            "date": date_str,
+            "display": display_date,
+            "available": True
+        })
+    
+    return jsonify({"available_dates": available_dates})
+
+@app.route("/customer/get_instructor_available_times", methods=["GET"])
+@login_required
+def get_instructor_available_times():
+    """API endpoint to get available times for a specific instructor on a date"""
     
     # Ensure the current user is a customer
     if current_user.role != "customer":
@@ -493,7 +978,6 @@ def cancel_lesson():
     time_requests = db.execute(
         """
         SELECT 
-            request_date, 
             start_time, 
             end_time,
             request_type,
@@ -507,7 +991,7 @@ def cancel_lesson():
         instructor_id, date
     )
     
-    # Process time requests to determine open time slots
+    # Process time requests to determine open time ranges
     open_ranges = []
     
     # Process each request in chronological order
@@ -621,11 +1105,10 @@ def cancel_lesson():
         # Replace the open ranges with the updated ones
         open_ranges = updated_ranges
     
-    # Format the available times for the response
+    # Create 1-hour slots within each open range
     available_times = []
     
     for open_range in open_ranges:
-        # Create 1-hour slots within each open range
         start = open_range["start"]
         end = open_range["end"]
         
@@ -639,19 +1122,76 @@ def cancel_lesson():
             slot_start = current.time()
             slot_end = (current + timedelta(hours=1)).time()
             
+            # Format times for display
+            start_str = slot_start.strftime("%H:%M")
+            end_str = slot_end.strftime("%H:%M")
+            display = f"{slot_start.strftime('%I:%M %p')} - {slot_end.strftime('%I:%M %p')}"
+            
             available_times.append({
-                "start_time": slot_start.strftime("%H:%M"),
-                "end_time": slot_end.strftime("%H:%M"),
-                "display": f"{slot_start.strftime('%I:%M %p')} - {slot_end.strftime('%I:%M %p')}"
+                "start_time": start_str,
+                "end_time": end_str,
+                "display": display
             })
             
             current += timedelta(minutes=30)  # 30-minute increments
     
+    # Sort by start time
+    available_times.sort(key=lambda x: x["start_time"])
+    
     return jsonify({"available_times": available_times})
 
-@app.route("/customer/get_available_times", methods=["GET"])
+@app.route("/customer/cancel_lesson", methods=["POST"])
 @login_required
-def get_available_times():
+def cancel_lesson():
+    """Cancel a booked lesson"""
+    
+    # Ensure the current user is a customer
+    if current_user.role != "customer":
+        flash("You don't have permission to access this page", "danger")
+        return redirect("/")
+    
+    lesson_id = request.form.get("lesson_id")
+    
+    if not lesson_id:
+        flash("Invalid request", "danger")
+        return redirect("/customer/my_lessons")
+    
+    # Check if the lesson exists and belongs to the current user
+    lesson = db.execute(
+        """
+        SELECT id, lesson_date, start_time 
+        FROM lessons 
+        WHERE id = ? AND customer_id = ? AND status = 'booked'
+        """,
+        lesson_id, current_user.id
+    )
+    
+    if not lesson:
+        flash("Lesson not found or already cancelled", "danger")
+        return redirect("/customer/my_lessons")
+    
+    # Check if the lesson is in the future
+    lesson_date = datetime.strptime(lesson[0]["lesson_date"], "%Y-%m-%d").date()
+    lesson_time = datetime.strptime(lesson[0]["start_time"], "%H:%M").time()
+    lesson_datetime = datetime.combine(lesson_date, lesson_time)
+    
+    # Calculate cancellation policy (e.g., 24 hours in advance)
+    cancellation_deadline = datetime.now() + timedelta(hours=24)
+    
+    if lesson_datetime < cancellation_deadline:
+        flash("Lessons must be cancelled at least 24 hours in advance", "danger")
+        return redirect("/customer/my_lessons")
+    
+    # Update the lesson status to cancelled
+    db.execute(
+        "UPDATE lessons SET status = 'cancelled' WHERE id = ?",
+        lesson_id
+    )
+    
+    flash("Lesson cancelled successfully", "success")
+    return redirect("/customer/my_lessons")
+
+
     """API endpoint to get available times for an instructor on a specific date"""
     
     # Ensure the current user is a customer
@@ -1351,6 +1891,87 @@ def get_instructor_calendar():
         "month": month
     })
 
+@app.route("/instructor/history")
+@login_required
+def instructor_history():
+    """Show history of all past lessons for the instructor"""
+    
+    # Ensure the current user is an instructor
+    if current_user.role != "instructor":
+        flash("You don't have permission to access this page", "danger")
+        return redirect("/")
+    
+    # Get current date for comparison
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    
+    # Get all past lessons for this instructor
+    past_lessons = db.execute(
+        """
+        SELECT 
+            l.id, 
+            l.lesson_date, 
+            l.start_time, 
+            l.end_time, 
+            l.status,
+            l.notes,
+            l.created_at,
+            u.id as customer_id,
+            ui.name as customer_first_name,
+            ui.surname as customer_last_name,
+            ui.email as customer_email,
+            ui.phone as customer_phone,
+            ui.ski_type as customer_ski_type
+        FROM lessons l
+        JOIN users u ON l.customer_id = u.id
+        JOIN user_info ui ON u.id = ui.id
+        WHERE l.instructor_id = ?
+        AND (l.lesson_date < ? OR (l.lesson_date = ? AND l.end_time < strftime('%H:%M', 'now')))
+        ORDER BY l.lesson_date DESC, l.start_time DESC
+        """,
+        current_user.id, current_date, current_date
+    )
+    
+    # Group lessons by month for better organization
+    grouped_lessons = {}
+    
+    for lesson in past_lessons:
+        # Convert date string to datetime object
+        lesson_date = datetime.strptime(lesson["lesson_date"], "%Y-%m-%d")
+        
+        # Format month and year as a key
+        month_year = lesson_date.strftime("%B %Y")
+        
+        # Add to grouped dictionary
+        if month_year not in grouped_lessons:
+            grouped_lessons[month_year] = []
+        
+        # Format date for display
+        lesson["formatted_date"] = lesson_date.strftime("%A, %B %d, %Y")
+        
+        # Format time for display
+        start_time = datetime.strptime(lesson["start_time"], "%H:%M").strftime("%I:%M %p")
+        end_time = datetime.strptime(lesson["end_time"], "%H:%M").strftime("%I:%M %p")
+        lesson["formatted_time"] = f"{start_time} - {end_time}"
+        
+        # Add to group
+        grouped_lessons[month_year].append(lesson)
+    
+    # Get instructor info for the page header
+    instructor_info = db.execute(
+        """
+        SELECT ui.name, ui.surname, ui.profile_picture
+        FROM user_info ui
+        WHERE ui.id = ?
+        """,
+        current_user.id
+    )[0]
+    
+    return render_template(
+        "instructor/history.html",
+        grouped_lessons=grouped_lessons,
+        instructor=instructor_info
+    )
+
 ########################### Admin routes ##################################
 
 @app.route("/admin/home")
@@ -1716,10 +2337,344 @@ def admin_time_requests():
 
 @app.route("/admin/instructor_schedule", methods=["GET"])
 @login_required
-def instructor_schedule():
+def admin_instructor_schedule():
+    """Show instructor schedule for a specific date"""
 
+    if current_user.role not in ["admin", "owner"]:
+        flash("You don't have permission to access this page", "danger")
+        return redirect("/logout")
 
+    # Get the selected date (default to today)
+    selected_date_str = request.args.get("date", None)
+    
+    # Parse the selected date or use today
+    if selected_date_str:
+        try:
+            selected_date = datetime.strptime(selected_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            selected_date = date.today()
+    else:
+        selected_date = date.today()
+    
+    # Format selected date for display
+    formatted_date = selected_date.strftime("%A, %B %d, %Y")
+    
+    # Get working hours for the day of week
+    day_of_week = selected_date.weekday()  # 0 = Monday, 6 = Sunday
+    
+    # Query the working hours for this day
+    db_working_hours = db.execute(
+        "SELECT * FROM working_hours WHERE day_of_week = ? AND is_open = 1", 
+        day_of_week
+    )
+    
+    if not db_working_hours:
+        # Return a message that the school is closed
+        return render_template("admin/instructor_schedule.html", 
+            selected_date=selected_date.strftime("%Y-%m-%d"),
+            formatted_date=formatted_date,
+            is_open=False)
+    
+    working_hours = db_working_hours[0]
+    
+    # Generate time slots in 30-minute intervals
+    start_hour, start_minute = map(int, working_hours["open_time"].split(":"))
+    end_hour, end_minute = map(int, working_hours["close_time"].split(":"))
+    
+    start_minutes = start_hour * 60 + start_minute
+    end_minutes = end_hour * 60 + end_minute
+    
+    time_slots = []
+    current_minutes = start_minutes
+    
+    while current_minutes < end_minutes:
+        hour = current_minutes // 60
+        minute = current_minutes % 60
+        time_slot = f"{hour:02d}:{minute:02d}"
+        time_slots.append(time_slot)
+        current_minutes += 30
+    
+    # Get all instructors
+    instructors = db.execute(
+        "SELECT users.id, user_info.name, user_info.surname "
+        "FROM users JOIN user_info ON users.id = user_info.id "
+        "WHERE users.role = 'instructor' "
+        "ORDER BY user_info.surname, user_info.name"
+    )
+    
+    # Get all approved time requests (openings and closings) for the selected date
+    time_requests = db.execute(
+        "SELECT instructor_id, start_time, end_time, request_type "
+        "FROM time_requests "
+        "WHERE request_date = ? AND status = 'approved'",
+        selected_date.strftime("%Y-%m-%d")
+    )
+    
+    # Create a dictionary to track instructor availability
+    instructor_availability = {}
+    
+    for instructor in instructors:
+        instructor_id = instructor["id"]
+        instructor_availability[instructor_id] = {}
+        
+        # Initialize all time slots as closed
+        for time_slot in time_slots:
+            instructor_availability[instructor_id][time_slot] = {
+                "status": "closed",
+                "lesson": None
+            }
+        
+        # Process time requests to update availability
+        for req in time_requests:
+            if req["instructor_id"] == instructor_id:
+                req_start = req["start_time"]
+                req_end = req["end_time"]
+                req_type = req["request_type"]
+                
+                # Update all time slots affected by this request
+                for time_slot in time_slots:
+                    if req_start <= time_slot < req_end:
+                        if req_type == "open":
+                            instructor_availability[instructor_id][time_slot]["status"] = "open"
+                        elif req_type == "close":
+                            instructor_availability[instructor_id][time_slot]["status"] = "closed"
+    
+    # Get all lessons for the selected date
+    lessons = db.execute(
+        """
+        SELECT l.id, l.instructor_id, l.start_time, l.end_time, l.status, l.notes,
+               u.id as customer_id, ui.name as customer_first_name, ui.surname as customer_last_name,
+               ui.email as customer_email, ui.phone as customer_phone, ui.birthday as customer_birthday,
+               ui.ski_type as customer_ski_type
+        FROM lessons l
+        JOIN users u ON l.customer_id = u.id
+        JOIN user_info ui ON u.id = ui.id
+        WHERE l.lesson_date = ? AND l.status = 'booked'
+        """,
+        selected_date.strftime("%Y-%m-%d")
+    )
+    
+    # Update availability with lessons
+    for lesson in lessons:
+        instructor_id = lesson["instructor_id"]
+        start_time = lesson["start_time"]
+        end_time = lesson["end_time"]
+        
+        # Add lesson to all time slots it covers
+        for time_slot in time_slots:
+            if start_time <= time_slot < end_time:
+                if instructor_id in instructor_availability:
+                    instructor_availability[instructor_id][time_slot]["status"] = "booked"
+                    instructor_availability[instructor_id][time_slot]["lesson"] = lesson
+    
+    # Format lessons for JSON serialization
+    lessons_json = []
+    for lesson in lessons:
+        lesson_dict = dict(lesson)
+        # Convert any non-serializable data types if needed
+        lessons_json.append(lesson_dict)
+    
+    return render_template("admin/instructor_schedule.html",
+        selected_date=selected_date.strftime("%Y-%m-%d"),
+        formatted_date=formatted_date,
+        time_slots=time_slots,
+        instructors=instructors,
+        instructor_availability=instructor_availability,
+        lessons=lessons_json,
+        is_open=True)
 
+@app.route("/admin/search_customers", methods=["GET"])
+@login_required
+def search_customers():
+    """Search for customers by name, surname, email, or phone"""
+    
+    if current_user.role not in ["admin", "owner"]:
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    
+    # Get search query
+    query = request.args.get("q", "")
+    
+    if not query or len(query) < 2:
+        return jsonify({"success": True, "customers": []})
+    
+    # Search for customers
+    customers = db.execute(
+        """
+        SELECT u.id, ui.name, ui.surname, ui.email, ui.phone, ui.birthday, ui.ski_type
+        FROM users u
+        JOIN user_info ui ON u.id = ui.id
+        WHERE u.role = 'customer' 
+        AND (
+            ui.name LIKE ? OR 
+            ui.surname LIKE ? OR 
+            ui.email LIKE ? OR 
+            ui.phone LIKE ?
+        )
+        ORDER BY ui.surname, ui.name
+        LIMIT 10
+        """,
+        f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"
+    )
+    
+    return jsonify({"success": True, "customers": customers})
+
+@app.route("/admin/add_lesson", methods=["POST"])
+@login_required
+def admin_add_lesson():
+    """Add a new lesson manually by admin"""
+    
+    if current_user.role not in ["admin", "owner"]:
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    
+    # Get form data
+    instructor_id = request.form.get("instructor_id")
+    lesson_date = request.form.get("lesson_date")
+    start_time = request.form.get("start_time")
+    notes = request.form.get("notes", "")
+    user_type = request.form.get("user_type")
+    
+    # Fixed duration of 60 minutes
+    duration = 60
+    
+    # Calculate end time (start_time + duration)
+    start_hour, start_minute = map(int, start_time.split(":"))
+    start_minutes = start_hour * 60 + start_minute
+    end_minutes = start_minutes + duration
+    end_hour = end_minutes // 60
+    end_minute = end_minutes % 60
+    end_time = f"{end_hour:02d}:{end_minute:02d}"
+    
+    try:
+        # Check if the instructor is available for this time slot
+        # Get all approved time requests for this instructor on this date
+        time_requests = db.execute(
+            """
+            SELECT start_time, end_time, request_type
+            FROM time_requests
+            WHERE instructor_id = ? AND request_date = ? AND status = 'approved'
+            """,
+            instructor_id, lesson_date
+        )
+        
+        # Check if the instructor is available for the entire duration
+        is_available = False
+        for req in time_requests:
+            if req["request_type"] == "open" and req["start_time"] <= start_time and end_time <= req["end_time"]:
+                is_available = True
+                break
+        
+        if not is_available:
+            return jsonify({"success": False, "message": "Instructor is not available for this time slot"}), 400
+        
+        # Check if there are any overlapping lessons
+        existing_lessons = db.execute(
+            """
+            SELECT id FROM lessons
+            WHERE instructor_id = ? AND lesson_date = ? AND status = 'booked'
+            AND ((start_time <= ? AND end_time > ?) OR (start_time < ? AND end_time >= ?) OR (start_time >= ? AND end_time <= ?))
+            """,
+            instructor_id, lesson_date, start_time, start_time, end_time, end_time, start_time, end_time
+        )
+        
+        if existing_lessons:
+            return jsonify({"success": False, "message": "There is already a lesson booked during this time"}), 400
+        
+        # Handle customer based on user_type
+        customer_id = None
+        
+        if user_type == "existing":
+            # Get existing customer ID
+            customer_id = request.form.get("customer_id")
+            if not customer_id:
+                return jsonify({"success": False, "message": "Please select a customer"}), 400
+        
+        elif user_type == "new":
+            # Create a new customer
+            name = request.form.get("name")
+            surname = request.form.get("surname")
+            email = request.form.get("email")
+            phone = request.form.get("phone")
+            birthday = request.form.get("birthday", "")
+            ski_type = request.form.get("ski_type", "")
+            
+            # Validate required fields
+            if not name or not surname or not email:
+                return jsonify({"success": False, "message": "Name, surname, and email are required"}), 400
+            
+            # Check if email already exists
+            existing_email = db.execute("SELECT id FROM user_info WHERE email = ?", email)
+            if existing_email:
+                return jsonify({"success": False, "message": "Email already exists"}), 400
+            
+            # Generate a username (email or name+surname)
+            username = email.split("@")[0].lower()
+            
+            # Check if username exists and append numbers if needed
+            existing_username = db.execute("SELECT id FROM users WHERE username = ?", username)
+            if existing_username:
+                base_username = username
+                counter = 1
+                while existing_username:
+                    username = f"{base_username}{counter}"
+                    existing_username = db.execute("SELECT id FROM users WHERE username = ?", username)
+                    counter += 1
+            
+            # Generate a random password (not needed for login, but required for the hash field)
+            import secrets
+            import string
+            alphabet = string.ascii_letters + string.digits
+            password = ''.join(secrets.choice(alphabet) for i in range(12))
+            
+            # Hash the password
+            hash_value = generate_password_hash(password)
+            
+            # Insert new user
+            customer_id = db.execute(
+                "INSERT INTO users (username, hash, role) VALUES (?, ?, 'customer')",
+                username, hash_value)
+            print(f"New customer ID: {customer_id}")
+            # Insert user info
+            db.execute(
+                """
+                UPDATE user_info SET role = "customer", name = ?, surname = ?, email = ?, phone = ?, birthday = ?, ski_type = ? WHERE id = ?
+                """,
+                name, surname, email, phone, birthday, ski_type, customer_id
+            )
+        else:
+            return jsonify({"success": False, "message": "Invalid user type"}), 400
+        
+        # Insert the new lesson
+        lesson_id = db.execute(
+            """
+            INSERT INTO lessons (instructor_id, customer_id, lesson_date, start_time, end_time, status, notes, created_at)
+            VALUES (?, ?, ?, ?, ?, 'booked', ?, datetime('now'))
+            """,
+            instructor_id, customer_id, lesson_date, start_time, end_time, notes
+        )
+        
+        # Get the newly created lesson details
+        new_lesson = db.execute(
+            """
+            SELECT l.id, l.instructor_id, l.start_time, l.end_time, l.status, l.notes,
+                   u.id as customer_id, ui.name as customer_first_name, ui.surname as customer_last_name,
+                   ui.email as customer_email, ui.phone as customer_phone, ui.birthday as customer_birthday,
+                   ui.ski_type as customer_ski_type
+            FROM lessons l
+            JOIN users u ON l.customer_id = u.id
+            JOIN user_info ui ON u.id = ui.id
+            WHERE l.id = ?
+            """,
+            lesson_id
+        )[0]
+        
+        return jsonify({
+            "success": True, 
+            "message": "Lesson added successfully",
+            "lesson": dict(new_lesson)
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 ########################### Owner routes ##################################
 
@@ -2140,10 +3095,29 @@ def edit_staff_info():
         hourly_rate = request.form.get("hourly_rate") or 0
         role = request.form.get("role")
         
+        # Get ski types (could be multiple)
+        ski_types = request.form.getlist("ski_type")
+        ski_type = ",".join(ski_types) if ski_types else None
+        
         # Validate input
         if not user_id:
             flash("Invalid user ID", "danger")
             return redirect("/owner/edit_staff_info")
+        
+        # Handle empty email - convert empty string to None
+        if email == "":
+            email = None
+        
+        # If email is provided, check if it's already in use by another user
+        if email is not None:
+            existing_email = db.execute(
+                "SELECT id FROM user_info WHERE email = ? AND id != ?", 
+                email, user_id
+            )
+            
+            if existing_email:
+                flash("Email is already in use by another user", "danger")
+                return redirect(f"/owner/edit_staff_info?edit={user_id}")
         
         # Handle profile picture upload
         profile_picture_path = None
@@ -2181,13 +3155,13 @@ def edit_staff_info():
         # Update user_info table
         if profile_picture_path:
             db.execute(
-                "UPDATE user_info SET name = ?, surname = ?, email = ?, phone = ?, hourly_rate = ?, profile_picture = ? WHERE id = ?",
-                name, surname, email, phone, hourly_rate, profile_picture_path, user_id
+                "UPDATE user_info SET name = ?, surname = ?, email = ?, phone = ?, hourly_rate = ?, profile_picture = ?, ski_type = ? WHERE id = ?",
+                name, surname, email, phone, hourly_rate, profile_picture_path, ski_type, user_id
             )
         else:
             db.execute(
-                "UPDATE user_info SET name = ?, surname = ?, email = ?, phone = ?, hourly_rate = ? WHERE id = ?",
-                name, surname, email, phone, hourly_rate, user_id
+                "UPDATE user_info SET name = ?, surname = ?, email = ?, phone = ?, hourly_rate = ?, ski_type = ? WHERE id = ?",
+                name, surname, email, phone, hourly_rate, ski_type, user_id
             )
         
         # Update role in both tables if it has changed
@@ -2240,6 +3214,11 @@ def edit_staff_info():
         )
         if user_to_edit:
             user_to_edit = user_to_edit[0]
+            # Split ski_type into a list if it exists
+            if user_to_edit["ski_type"]:
+                user_to_edit["ski_types"] = user_to_edit["ski_type"].split(",")
+            else:
+                user_to_edit["ski_types"] = []
     
     return render_template(
         "owner/edit_staff_info.html", 
@@ -2349,6 +3328,147 @@ def login():
 
     return render_template("login.html")
 
+###password reset routes###
+
+@app.route("/reset_password_request", methods=["GET", "POST"])
+def reset_password_request():
+    """Handle password reset requests"""
+    if request.method == "POST":
+        email = request.form.get("email")
+        
+        if not email:
+            flash("Please enter your email address", "danger")
+            return render_template("reset_password_request.html")
+        
+        # Find user by email
+        user_info = db.execute("SELECT * FROM user_info WHERE email = ?", email)
+        
+        if not user_info:
+            # Don't reveal that the email doesn't exist for security
+            flash("If this email is registered, you will receive password reset instructions shortly", "info")
+            return render_template("reset_password_request.html")
+        
+        # Get the user ID
+        user_id = user_info[0]["id"]
+        
+        # Generate a token
+        token = secrets.token_urlsafe(32)
+        
+        # Set expiration to 24 hours from now
+        expiration = datetime.now() + timedelta(hours=24)
+        expiration_str = expiration.strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Store the token in the database
+        # First, check if there's an existing token for this user and delete it
+        db.execute("DELETE FROM password_reset_tokens WHERE user_id = ?", user_id)
+        
+        # Insert the new token
+        db.execute(
+            "INSERT INTO password_reset_tokens (user_id, token, expiration) VALUES (?, ?, ?)",
+            user_id, token, expiration_str
+        )
+        
+        # Send the reset email
+        reset_url = url_for('reset_password', token=token, _external=True)
+        send_reset_email(email, reset_url)
+        
+        flash("If this email is registered, you will receive password reset instructions shortly", "info")
+        return render_template("reset_password_request.html")
+    
+    return render_template("reset_password_request.html")
+
+@app.route("/reset_password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    """Handle password reset"""
+    
+    # Verify the token
+    token_info = db.execute("SELECT * FROM password_reset_tokens WHERE token = ?", token)
+    
+    if not token_info:
+        flash("Invalid or expired reset link", "danger")
+        return redirect("/login")
+    
+    # Check if token is expired
+    expiration = datetime.strptime(token_info[0]["expiration"], "%Y-%m-%d %H:%M:%S")
+    if datetime.now() > expiration:
+        # Delete expired token
+        db.execute("DELETE FROM password_reset_tokens WHERE token = ?", token)
+        flash("Your reset link has expired. Please request a new one", "danger")
+        return redirect("/reset_password_request")
+    
+    user_id = token_info[0]["user_id"]
+    
+    if request.method == "POST":
+        password = request.form.get("password")
+        confirm_password = request.form.get("confirm_password")
+        
+        if not password or not confirm_password:
+            flash("Please fill out all fields", "danger")
+            return render_template("reset_password.html", token=token)
+        
+        if password != confirm_password:
+            flash("Passwords do not match", "danger")
+            return render_template("reset_password.html", token=token)
+        
+        # Hash the new password
+        password_hash = generate_password_hash(password)
+        
+        # Update the user's password
+        db.execute("UPDATE users SET hash = ? WHERE id = ?", password_hash, user_id)
+        
+        # Delete the used token
+        db.execute("DELETE FROM password_reset_tokens WHERE token = ?", token)
+        
+        flash("Your password has been reset successfully. You can now log in with your new password", "success")
+        return redirect("/login")
+    
+    return render_template("reset_password.html", token=token)
+
+def send_reset_email(to_email, reset_url):
+    """Send password reset email"""
+    
+    # Configure email settings - Replace with your actual email settings
+    SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+    SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
+    SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "kajus.oskutis@gmail.com")
+    SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "iwpj xwvo kzxk jcwq")
+    FROM_EMAIL = os.environ.get("FROM_EMAIL", "noreply@skiresort.com")
+    
+    # Create message
+    msg = MIMEMultipart()
+    msg['From'] = FROM_EMAIL
+    msg['To'] = to_email
+    msg['Subject'] = "Password Reset Request - Ski School"
+    
+    # Email body
+    body = f"""
+    <html>
+      <body>
+        <h2>Password Reset Request</h2>
+        <p>Hello,</p>
+        <p>We received a request to reset your password for your Ski School account.</p>
+        <p>Click the link below to set a new password:</p>
+        <p><a href="{reset_url}">Reset My Password</a></p>
+        <p>This link will expire in 24 hours.</p>
+        <p>If you didn't request a password reset, you can ignore this email.</p>
+        <p>Regards,<br>Ski School Team</p>
+      </body>
+    </html>
+    """
+    
+    msg.attach(MIMEText(body, 'html'))
+    
+    try:
+        # Connect to SMTP server and send email
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return False
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     """Register a new customer account"""
@@ -2381,6 +3501,11 @@ def register():
             
         if password != confirmation:
             flash("Passwords do not match", "danger")
+            return render_template("register.html")
+        
+        # Check password length
+        if len(password) < 8:
+            flash("Password must be at least 8 characters long", "danger")
             return render_template("register.html")
         
         # Check if username already exists

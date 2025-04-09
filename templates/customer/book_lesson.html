@@ -1,166 +1,1072 @@
 {% extends "layout.html" %}
 
 {% block title %}
-    Book a Lesson
+Book a Lesson
 {% endblock %}
 
 {% block main %}
 <div class="container">
     <h1 class="mb-4">Book a Ski Lesson</h1>
-    
+
     <div class="panel panel-default">
         <div class="panel-heading">
-            <h3 class="panel-title">Select Instructor and Time</h3>
+            <h3 class="panel-title">Choose Booking Method</h3>
         </div>
         <div class="panel-body">
-            <form action="/customer/book_lesson" method="post" id="bookingForm">
-                <div class="form-group">
-                    <label for="instructor_id">Select Instructor</label>
-                    <select class="form-control" id="instructor_id" name="instructor_id" required>
-                        <option value="">Choose an instructor</option>
-                        {% for instructor in instructors %}
-                            <option value="{{ instructor.id }}" data-rate="{{ instructor.hourly_rate }}">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="booking-method-card" id="bookByInstructor">
+                        <div class="card-inner">
+                            <h4><i class="fa fa-user"></i> Book by Instructor</h4>
+                            <p>Choose your preferred instructor first, then select from their available dates and times.
+                            </p>
+                            <button class="btn btn-primary">Select</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="booking-method-card" id="bookByTime">
+                        <div class="card-inner">
+                            <h4><i class="fa fa-calendar"></i> Book by Time</h4>
+                            <p>Choose your preferred date and time first, then select from available instructors.</p>
+                            <button class="btn btn-primary">Select</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Book by Instructor Flow -->
+    <div id="instructorFlow" style="display: none;">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span>1. Select Instructor</span>
+                    <button class="btn btn-xs btn-default pull-right" id="backToMethodsFromInstructor">
+                        <i class="fa fa-arrow-left"></i> Back
+                    </button>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <div class="instructor-list" id="instructorGrid">
+                    {% for instructor in instructors %}
+                    <div class="instructor-list-item" data-instructor-id="{{ instructor.id }}">
+                        <div class="instructor-avatar">
+                            {% if instructor.profile_picture %}
+                            <img src="{{ instructor.profile_picture }}"
+                                alt="{{ instructor.name }} {{ instructor.surname }}">
+                            {% else %}
+                            <div class="default-avatar">
+                                <span>{{ instructor.name[0] if instructor.name else instructor.username[0] }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="instructor-details">
+                            <h4>
                                 {% if instructor.name and instructor.surname %}
-                                    {{ instructor.name }} {{ instructor.surname }}
+                                {{ instructor.name }} {{ instructor.surname }}
                                 {% else %}
-                                    {{ instructor.username }}
+                                {{ instructor.username }}
                                 {% endif %}
-                                {% if instructor.hourly_rate > 0 %}
-                                    (${{ instructor.hourly_rate }}/hour)
-                                {% endif %}
-                            </option>
-                        {% endfor %}
-                    </select>
+                            </h4>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
-                
-                <div class="form-group">
-                    <label for="date">Select Date</label>
-                    <select class="form-control" id="date" name="date" required>
-                        <option value="">Choose a date</option>
-                        {% for date in available_dates %}
-                            <option value="{{ date.date }}">{{ date.display }}</option>
-                        {% endfor %}
-                    </select>
+            </div>
+        </div>
+
+        <div class="panel panel-default" id="instructorCalendarPanel" style="display: none;">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span>2. Select Date</span>
+                    <button class="btn btn-xs btn-default pull-right" id="backToInstructors">
+                        <i class="fa fa-arrow-left"></i> Back
+                    </button>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <div class="selected-instructor-info"></div>
+                <div id="instructorCalendar" class="calendar-container"></div>
+            </div>
+        </div>
+
+        <div class="panel panel-default" id="instructorTimesPanel" style="display: none;">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span>3. Select Time</span>
+                    <button class="btn btn-xs btn-default pull-right" id="backToInstructorCalendar">
+                        <i class="fa fa-arrow-left"></i> Back
+                    </button>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <div class="selected-date-info"></div>
+                <div id="instructorTimeSlots" class="time-slots-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Book by Time Flow -->
+    <div id="timeFlow" style="display: none;">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span>1. Select Date</span>
+                    <button class="btn btn-xs btn-default pull-right" id="backToMethodsFromTime">
+                        <i class="fa fa-arrow-left"></i> Back
+                    </button>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <div id="timeCalendar" class="calendar-container"></div>
+            </div>
+        </div>
+
+        <div class="panel panel-default" id="timeSlotPanel" style="display: none;">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span>2. Select Time</span>
+                    <button class="btn btn-xs btn-default pull-right" id="backToTimeCalendar">
+                        <i class="fa fa-arrow-left"></i> Back
+                    </button>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <div class="selected-date-info"></div>
+                <div id="availableTimeSlots" class="time-slots-container"></div>
+            </div>
+        </div>
+
+        <div class="panel panel-default" id="timeInstructorsPanel" style="display: none;">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    <span>3. Select Instructor</span>
+                    <button class="btn btn-xs btn-default pull-right" id="backToTimeSlots">
+                        <i class="fa fa-arrow-left"></i> Back
+                    </button>
+                </h3>
+            </div>
+            <div class="panel-body">
+                <div class="selected-time-info"></div>
+                <div id="availableInstructors" class="instructor-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Booking Summary and Confirmation -->
+    <div class="panel panel-default" id="bookingSummaryPanel" style="display: none;">
+        <div class="panel-heading">
+            <h3 class="panel-title">
+                <span>Booking Summary</span>
+                <button class="btn btn-xs btn-default pull-right" id="backToLastStep">
+                    <i class="fa fa-arrow-left"></i> Back
+                </button>
+            </h3>
+        </div>
+        <div class="panel-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="booking-summary">
+                        <h4>Your Lesson Details</h4>
+                        <table class="table">
+                            <tr>
+                                <th>Instructor:</th>
+                                <td id="summaryInstructor"></td>
+                            </tr>
+                            <tr>
+                                <th>Date:</th>
+                                <td id="summaryDate"></td>
+                            </tr>
+                            <tr>
+                                <th>Time:</th>
+                                <td id="summaryTime"></td>
+                            </tr>
+                            <tr>
+                                <th>Duration:</th>
+                                <td>60 minutes</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <form id="bookingForm" action="/customer/book_lesson" method="post">
+                        <input type="hidden" id="instructor_id" name="instructor_id">
+                        <input type="hidden" id="date" name="date">
+                        <input type="hidden" id="start_time" name="start_time">
+                        <input type="hidden" id="end_time" name="end_time">
+
+                        <div class="form-group">
+                            <label for="notes">Notes (Optional)</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"
+                                placeholder="Any special requests or information for the instructor"></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-success btn-lg">Confirm Booking</button>
+                    </form>
                 </div>
-                
-                <div class="form-group" id="timeSlotGroup" style="display: none;">
-                    <label for="time_slot">Select Time Slot</label>
-                    <select class="form-control" id="time_slot" name="time_slot" required>
-                        <option value="">Loading available times...</option>
-                    </select>
+                <div class="col-md-4">
+                    <div class="instructor-profile">
+                        <div id="summaryInstructorPhoto" class="instructor-photo-large"></div>
+                    </div>
                 </div>
-                
-                <input type="hidden" id="start_time" name="start_time">
-                <input type="hidden" id="end_time" name="end_time">
-                
-                <div class="form-group">
-                    <label for="notes">Notes (Optional)</label>
-                    <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Any special requests or information for the instructor"></textarea>
-                </div>
-                
-                <div class="alert alert-info" id="priceEstimate" style="display: none;">
-                    <strong>Estimated Price:</strong> <span id="priceValue">$0.00</span>
-                </div>
-                
-                <button type="submit" class="btn btn-primary" id="bookButton" disabled>Book Lesson</button>
-            </form>
+            </div>
         </div>
     </div>
 </div>
 
+<style>
+    /* Booking Method Cards */
+    .booking-method-card {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        background-color: #f9f9f9;
+    }
+
+    .booking-method-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        background-color: #f0f0f0;
+    }
+
+    .booking-method-card .card-inner {
+        padding: 20px;
+        text-align: center;
+    }
+
+    .booking-method-card h4 {
+        margin-top: 0;
+        color: #333;
+        font-weight: 600;
+    }
+
+    .booking-method-card i {
+        font-size: 24px;
+        margin-right: 5px;
+        color: #337ab7;
+    }
+
+    /* Instructor List */
+    .instructor-list {
+        margin-top: 15px;
+    }
+
+    .instructor-list-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 15px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background-color: #fff;
+    }
+
+    .instructor-list-item:hover {
+        background-color: #f5f5f5;
+        transform: translateX(5px);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .instructor-list-item.selected {
+        border: 2px solid #337ab7;
+        background-color: #f0f7ff;
+    }
+
+    .instructor-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        overflow: hidden;
+        margin-right: 15px;
+        flex-shrink: 0;
+    }
+
+    .instructor-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .default-avatar {
+        width: 100%;
+        height: 100%;
+        background-color: #6c757d;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+    }
+
+    .instructor-details {
+        flex-grow: 1;
+    }
+
+    .instructor-details h4 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    /* Calendar */
+    .calendar-container {
+        margin: 20px 0;
+    }
+
+    .calendar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 4px;
+        border: 1px solid #e9ecef;
+    }
+
+    .calendar-header h4 {
+        font-weight: 600;
+        margin: 0;
+        color: #333;
+        flex-grow: 1;
+        text-align: center;
+    }
+
+    .calendar-nav {
+        display: flex;
+    }
+
+    .calendar-nav button {
+        background: none;
+        border: 1px solid #ddd;
+        font-size: 14px;
+        cursor: pointer;
+        color: #495057;
+        padding: 5px 10px;
+        border-radius: 4px;
+        transition: all 0.2s;
+        margin: 0 2px;
+    }
+
+    .calendar-nav button:hover {
+        background-color: #e9ecef;
+    }
+
+    .calendar-nav button.today {
+        background-color: #007bff;
+        color: white;
+        border-color: #0069d9;
+    }
+
+    .calendar-weekdays {
+        display: flex;
+        margin-bottom: 10px;
+    }
+
+    .calendar-weekdays .calendar-day {
+        font-weight: bold;
+        background-color: #f8f9fa;
+        border: none;
+        color: #495057;
+    }
+
+    .calendar-days {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .calendar-day {
+        display: inline-block;
+        width: 14.28%;
+        padding: 10px;
+        text-align: center;
+        border: 1px solid #ddd;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background-color: #fff;
+        margin: 1px;
+        border-radius: 2px;
+    }
+
+    .calendar-day:hover:not(.empty):not(.unavailable) {
+        background-color: #f0f0f0;
+        transform: scale(1.05);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .calendar-day.empty {
+        background-color: #f9f9f9;
+        border: none;
+        cursor: default;
+    }
+
+    .calendar-day.available {
+        background-color: #d4edda;
+        color: #155724;
+        border-color: #c3e6cb;
+    }
+
+    .calendar-day.unavailable {
+        background-color: #f8d7da;
+        color: #721c24;
+        border-color: #f5c6cb;
+        cursor: not-allowed;
+    }
+
+    .calendar-day.selected {
+        background-color: #007bff;
+        color: white;
+        border-color: #0069d9;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Time Slots */
+    .time-slots-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 20px 0;
+    }
+
+    .time-slot {
+        padding: 10px 15px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background-color: #f9f9f9;
+    }
+
+    .time-slot:hover {
+        background-color: #f0f0f0;
+        transform: scale(1.05);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .time-slot.selected {
+        background-color: #007bff;
+        color: white;
+        border-color: #0069d9;
+    }
+
+    /* Selected Info */
+    .selected-instructor-info,
+    .selected-date-info,
+    .selected-time-info {
+        padding: 10px 15px;
+        background-color: #f0f0f0;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        border-left: 4px solid #337ab7;
+    }
+
+    /* Booking Summary */
+    .booking-summary {
+        margin-bottom: 30px;
+    }
+
+    .booking-summary h4 {
+        margin-top: 0;
+        margin-bottom: 20px;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .instructor-photo-large {
+        width: 100%;
+        height: 200px;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 15px;
+        background-color: #f5f5f5;
+    }
+
+    .instructor-photo-large img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    /* Loading indicator */
+    .loading-indicator {
+        text-align: center;
+        padding: 20px;
+    }
+
+    .loading-indicator i {
+        font-size: 24px;
+        color: #337ab7;
+    }
+
+    /* No results message */
+    .no-results {
+        text-align: center;
+        padding: 20px;
+        color: #721c24;
+        background-color: #f8d7da;
+        border-radius: 4px;
+        margin: 20px 0;
+    }
+
+    /* Calendar legend */
+    .calendar-legend {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 15px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        border: 1px solid #e9ecef;
+        margin-top: 15px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        font-size: 12px;
+    }
+
+    .legend-color {
+        width: 16px;
+        height: 16px;
+        margin-right: 5px;
+        border-radius: 3px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .bg-success {
+        background-color: #d4edda;
+    }
+
+    .bg-light {
+        background-color: #f8d7da;
+    }
+</style>
+
 <script>
-    $(document).ready(function() {
-        // When instructor and date are selected, fetch available times
-        $('#instructor_id, #date').change(function() {
-            var instructorId = $('#instructor_id').val();
-            var date = $('#date').val();
-            
-            // Reset time slot selection
-            $('#timeSlotGroup').hide();
-            $('#time_slot').empty().append('<option value="">Loading available times...</option>');
-            $('#start_time').val('');
-            $('#end_time').val('');
-            $('#bookButton').prop('disabled', true);
-            $('#priceEstimate').hide();
-            
-            // If both instructor and date are selected, fetch available times
-            if (instructorId && date) {
-                $.ajax({
-                    url: '/customer/get_available_times',
-                    type: 'GET',
-                    data: {
-                        instructor_id: instructorId,
-                        date: date
-                    },
-                    dataType: 'json',
-                    success: function(data) {
-                        $('#time_slot').empty();
-                        
-                        if (data.available_times && data.available_times.length > 0) {
-                            $('#time_slot').append('<option value="">Select a time slot</option>');
-                            
-                            $.each(data.available_times, function(index, time) {
-                                $('#time_slot').append(
-                                    $('<option></option>')
-                                        .attr('value', time.start_time + '|' + time.end_time)
-                                        .text(time.display)
-                                );
-                            });
-                            
-                            $('#timeSlotGroup').show();
-                        } else {
-                            $('#time_slot').append('<option value="">No available times</option>');
-                            $('#timeSlotGroup').show();
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        console.error('Error fetching available times:', error);
-                        console.error('Status:', status);
-                        console.error('Response:', xhr.responseText);
-                        
-                        $('#time_slot').empty().append('<option value="">Error loading times. Please try again.</option>');
-                        $('#timeSlotGroup').show();
-                    }
-                });
-            }
+    $(document).ready(function () {
+        // Variables to store selected values
+        let selectedInstructor = null;
+        let selectedDate = null;
+        let selectedStartTime = null;
+        let selectedEndTime = null;
+        let selectedTimeDisplay = null;
+        let currentFlow = null;
+
+        // Calendar navigation variables
+        let currentCalendarDate = new Date();
+        let currentInstructorId = null;
+
+        // Booking Method Selection
+        $('#bookByInstructor').click(function () {
+            $('.booking-method-card').parent().parent().parent().hide();
+            $('#instructorFlow').show();
+            currentFlow = 'instructor';
         });
-        
-        // When time slot is selected, update hidden fields and enable book button
-        $('#time_slot').change(function() {
-            var timeSlot = $(this).val();
-            
-            if (timeSlot) {
-                var times = timeSlot.split('|');
-                $('#start_time').val(times[0]);
-                $('#end_time').val(times[1]);
-                $('#bookButton').prop('disabled', false);
-                
-                // Calculate and show price estimate
-                var instructorId = $('#instructor_id').val();
-                var hourlyRate = parseFloat($('#instructor_id option:selected').data('rate')) || 0;
-                
-                if (hourlyRate > 0) {
-                    // Calculate duration in hours
-                    var startParts = times[0].split(':');
-                    var endParts = times[1].split(':');
-                    var startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
-                    var endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
-                    var durationHours = (endMinutes - startMinutes) / 60;
-                    
-                    // Calculate price
-                    var price = hourlyRate * durationHours;
-                    $('#priceValue').text('$' + price.toFixed(2));
-                    $('#priceEstimate').show();
-                } else {
-                    $('#priceEstimate').hide();
-                }
+
+        $('#bookByTime').click(function () {
+            $('.booking-method-card').parent().parent().parent().hide();
+            $('#timeFlow').show();
+            currentFlow = 'time';
+
+            // Reset calendar date to current month
+            currentCalendarDate = new Date();
+
+            // Load available dates
+            loadAvailableDates();
+        });
+
+        // Back buttons
+        $('#backToMethodsFromInstructor, #backToMethodsFromTime').click(function () {
+            resetBookingFlow();
+        });
+
+        $('#backToInstructors').click(function () {
+            $('#instructorCalendarPanel').hide();
+            selectedDate = null;
+        });
+
+        $('#backToInstructorCalendar').click(function () {
+            $('#instructorTimesPanel').hide();
+            $('#instructorCalendarPanel').show();
+            selectedStartTime = null;
+            selectedEndTime = null;
+        });
+
+        $('#backToTimeCalendar').click(function () {
+            $('#timeSlotPanel').hide();
+            selectedDate = null;
+        });
+
+        $('#backToTimeSlots').click(function () {
+            $('#timeInstructorsPanel').hide();
+            $('#timeSlotPanel').show();
+            selectedInstructor = null;
+        });
+
+        $('#backToLastStep').click(function () {
+            $('#bookingSummaryPanel').hide();
+
+            if (currentFlow === 'instructor') {
+                $('#instructorTimesPanel').show();
             } else {
-                $('#start_time').val('');
-                $('#end_time').val('');
-                $('#bookButton').prop('disabled', true);
-                $('#priceEstimate').hide();
+                $('#timeInstructorsPanel').show();
             }
         });
+
+        // Instructor selection
+        $(document).on('click', '.instructor-list-item', function () {
+            $('.instructor-list-item').removeClass('selected');
+            $(this).addClass('selected');
+
+            selectedInstructor = {
+                id: $(this).data('instructor-id'),
+                name: $(this).find('h4').text().trim(),
+                photo: $(this).find('.instructor-avatar').html()
+            };
+
+            // Reset calendar date to current month
+            currentCalendarDate = new Date();
+            currentInstructorId = selectedInstructor.id;
+
+            // Show instructor info in the next panel
+            $('.selected-instructor-info').html(`
+                <strong>Selected Instructor:</strong> ${selectedInstructor.name}
+            `);
+
+            // Load available dates for this instructor
+            loadInstructorAvailableDates(selectedInstructor.id);
+
+            $('#instructorCalendarPanel').show();
+        });
+
+        // Date selection in instructor flow
+        $(document).on('click', '.calendar-day.available', function () {
+            $('.calendar-day').removeClass('selected');
+            $(this).addClass('selected');
+
+            selectedDate = $(this).data('date');
+            let displayDate = $(this).data('display');
+
+            // Show date info in the next panel
+            $('.selected-date-info').html(`<strong>Selected Date:</strong> ${displayDate}`);
+
+            // Load available times for this instructor on this date
+            if (currentFlow === 'instructor') {
+                loadInstructorAvailableTimes(selectedInstructor.id, selectedDate);
+                $('#instructorCalendarPanel').hide();
+                $('#instructorTimesPanel').show();
+            } else {
+                loadAvailableTimesForDate(selectedDate);
+                $('#timeCalendar').parent().hide();
+                $('#timeSlotPanel').show();
+            }
+        });
+
+        // Calendar navigation
+        $(document).on('click', '.prev-month', function () {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+            if (currentFlow === 'instructor') {
+                loadInstructorAvailableDates(currentInstructorId);
+            } else {
+                loadAvailableDates();
+            }
+        });
+
+        $(document).on('click', '.next-month', function () {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+            if (currentFlow === 'instructor') {
+                loadInstructorAvailableDates(currentInstructorId);
+            } else {
+                loadAvailableDates();
+            }
+        });
+
+        // Time selection
+        $(document).on('click', '.time-slot', function () {
+            $('.time-slot').removeClass('selected');
+            $(this).addClass('selected');
+
+            let timeValue = $(this).data('value');
+            let times = timeValue.split('|');
+            selectedStartTime = times[0];
+            selectedEndTime = times[1];
+            selectedTimeDisplay = $(this).text().trim();
+
+            if (currentFlow === 'instructor') {
+                // Show booking summary
+                showBookingSummary();
+            } else {
+                // Show available instructors for this time
+                $('.selected-time-info').html(`<strong>Selected Time:</strong> ${selectedTimeDisplay}`);
+                loadAvailableInstructorsForTime(selectedDate, selectedStartTime, selectedEndTime);
+                $('#timeSlotPanel').hide();
+                $('#timeInstructorsPanel').show();
+            }
+        });
+
+        // Instructor selection in time flow
+        $(document).on('click', '.available-instructor', function () {
+            $('.available-instructor').removeClass('selected');
+            $(this).addClass('selected');
+
+            selectedInstructor = {
+                id: $(this).data('instructor-id'),
+                name: $(this).find('h4').text().trim(),
+                photo: $(this).find('.instructor-avatar').html()
+            };
+
+            // Show booking summary
+            showBookingSummary();
+        });
+
+        // Function to load available dates for an instructor
+        function loadInstructorAvailableDates(instructorId) {
+            $('#instructorCalendar').html('<div class="loading-indicator"><i class="fa fa-spinner fa-spin"></i> Loading available dates...</div>');
+
+            $.ajax({
+                url: '/customer/get_instructor_available_dates',
+                type: 'GET',
+                data: {
+                    instructor_id: instructorId,
+                    year: currentCalendarDate.getFullYear(),
+                    month: currentCalendarDate.getMonth() + 1
+                },
+                dataType: 'json',
+                success: function (data) {
+                    if (data.error) {
+                        $('#instructorCalendar').html('<div class="no-results">' + data.error + '</div>');
+                        return;
+                    }
+
+                    let calendarHtml = generateCalendarHtml(currentCalendarDate, data.available_dates);
+                    calendarHtml += generateCalendarLegend();
+                    $('#instructorCalendar').html(calendarHtml);
+                },
+                error: function () {
+                    $('#instructorCalendar').html('<div class="no-results">Error loading available dates. Please try again.</div>');
+                }
+            });
+        }
+
+        // Function to load available dates with at least one instructor
+        function loadAvailableDates() {
+            $('#timeCalendar').html('<div class="loading-indicator"><i class="fa fa-spinner fa-spin"></i> Loading available dates...</div>');
+
+            $.ajax({
+                url: '/customer/get_available_dates',
+                type: 'GET',
+                data: {
+                    year: currentCalendarDate.getFullYear(),
+                    month: currentCalendarDate.getMonth() + 1
+                },
+                dataType: 'json',
+                success: function (data) {
+                    if (data.error) {
+                        $('#timeCalendar').html('<div class="no-results">' + data.error + '</div>');
+                        return;
+                    }
+
+                    let calendarHtml = generateCalendarHtml(currentCalendarDate, data.available_dates);
+                    calendarHtml += generateCalendarLegend();
+                    $('#timeCalendar').html(calendarHtml);
+                },
+                error: function () {
+                    $('#timeCalendar').html('<div class="no-results">Error loading available dates. Please try again.</div>');
+                }
+            });
+        }
+
+        // Function to generate calendar HTML
+        function generateCalendarHtml(date, availableDates) {
+            let currentMonth = date.getMonth();
+            let currentYear = date.getFullYear();
+            let firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            let daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+            let monthNames = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"];
+
+            let html = `
+        <div class="calendar-header">
+            <div class="calendar-nav">
+                <button type="button" class="prev-month btn btn-sm btn-default">&lt; Previous</button>
+            </div>
+            <h4>${monthNames[currentMonth]} ${currentYear}</h4>
+            <div class="calendar-nav">
+                <button type="button" class="next-month btn btn-sm btn-default">Next &gt;</button>
+            </div>
+        </div>
+        <div class="calendar-weekdays">
+            <div class="calendar-day weekday">Sun</div>
+            <div class="calendar-day weekday">Mon</div>
+            <div class="calendar-day weekday">Tue</div>
+            <div class="calendar-day weekday">Wed</div>
+            <div class="calendar-day weekday">Thu</div>
+            <div class="calendar-day weekday">Fri</div>
+            <div class="calendar-day weekday">Sat</div>
+        </div>
+        <div class="calendar-days">
+    `;
+
+            // Add empty cells for days before the first day of the month
+            for (let i = 0; i < firstDay; i++) {
+                html += `<div class="calendar-day empty"></div>`;
+            }
+
+            // Add days of the month
+            let today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                let currentDate = new Date(currentYear, currentMonth, day);
+                let dateStr = formatDate(currentDate);
+                let displayDate = formatDisplayDate(currentDate);
+
+                // Check if date is in the past
+                let isPast = currentDate < today;
+
+                // Check if date is available
+                let isAvailable = false;
+                if (availableDates && !isPast) {
+                    isAvailable = availableDates.some(d => d.date === dateStr && d.available);
+                }
+
+                let className = isPast ? 'unavailable' : (isAvailable ? 'available' : 'unavailable');
+
+                html += `
+            <div class="calendar-day ${className}" 
+                 data-date="${dateStr}" 
+                 data-display="${displayDate}">
+                ${day}
+            </div>
+        `;
+            }
+
+            html += `</div>`;
+            return html;
+        }
+
+        // Function to load available times for an instructor on a date
+        function loadInstructorAvailableTimes(instructorId, date) {
+            $('#instructorTimeSlots').html('<div class="loading-indicator"><i class="fa fa-spinner fa-spin"></i> Loading available times...</div>');
+
+            $.ajax({
+                url: '/customer/get_instructor_available_times',
+                type: 'GET',
+                data: {
+                    instructor_id: instructorId,
+                    date: date
+                },
+                dataType: 'json',
+                success: function (data) {
+                    if (data.error) {
+                        $('#instructorTimeSlots').html('<div class="no-results">' + data.error + '</div>');
+                        return;
+                    }
+
+                    let html = '';
+
+                    if (data.available_times && data.available_times.length > 0) {
+                        data.available_times.forEach(function (time) {
+                            html += `
+                                <div class="time-slot" data-value="${time.start_time}|${time.end_time}">
+                                    ${time.display}
+                                </div>
+                            `;
+                        });
+                    } else {
+                        html = '<div class="no-results">No available times for this date.</div>';
+                    }
+
+                    $('#instructorTimeSlots').html(html);
+                },
+                error: function (xhr, status, error) {
+                    console.error("AJAX Error:", status, error);
+                    $('#instructorTimeSlots').html('<div class="no-results">Error loading available times. Please try again.</div>');
+                }
+            });
+        }
+
+        // Function to load available times for a date (any instructor)
+        function loadAvailableTimesForDate(date) {
+            $('#availableTimeSlots').html('<div class="loading-indicator"><i class="fa fa-spinner fa-spin"></i> Loading available times...</div>');
+
+            $.ajax({
+                url: '/customer/get_available_times_for_date',
+                type: 'GET',
+                data: { date: date },
+                dataType: 'json',
+                success: function (data) {
+                    if (data.error) {
+                        $('#availableTimeSlots').html('<div class="no-results">' + data.error + '</div>');
+                        return;
+                    }
+
+                    let html = '';
+
+                    if (data.available_times && data.available_times.length > 0) {
+                        data.available_times.forEach(function (time) {
+                            html += `
+                                <div class="time-slot" data-value="${time.start_time}|${time.end_time}">
+                                    ${time.display}
+                                </div>
+                            `;
+                        });
+                    } else {
+                        html = '<div class="no-results">No available times for this date.</div>';
+                    }
+
+                    $('#availableTimeSlots').html(html);
+                },
+                error: function (xhr, status, error) {
+                    console.error("AJAX Error:", status, error);
+                    $('#availableTimeSlots').html('<div class="no-results">Error loading available times. Please try again.</div>');
+                }
+            });
+        }
+
+        // Function to load available instructors for a specific time
+        function loadAvailableInstructorsForTime(date, startTime, endTime) {
+            $('#availableInstructors').html('<div class="loading-indicator"><i class="fa fa-spinner fa-spin"></i> Loading available instructors...</div>');
+
+            $.ajax({
+                url: '/customer/get_available_instructors',
+                type: 'GET',
+                data: {
+                    date: date,
+                    start_time: startTime,
+                    end_time: endTime
+                },
+                dataType: 'json',
+                success: function (data) {
+                    if (data.error) {
+                        $('#availableInstructors').html('<div class="no-results">' + data.error + '</div>');
+                        return;
+                    }
+
+                    let html = '';
+
+                    if (data.available_instructors && data.available_instructors.length > 0) {
+                        data.available_instructors.forEach(function (instructor) {
+                            let name = instructor.name && instructor.surname ?
+                                `${instructor.name} ${instructor.surname}` : instructor.username;
+
+                            let photoHtml = '';
+                            if (instructor.profile_picture) {
+                                photoHtml = `<img src="${instructor.profile_picture}" alt="${name}">`;
+                            } else {
+                                let initial = instructor.name ? instructor.name[0] : instructor.username[0];
+                                photoHtml = `<div class="default-avatar"><span>${initial}</span></div>`;
+                            }
+
+                            html += `
+                                <div class="instructor-list-item available-instructor" data-instructor-id="${instructor.id}">
+                                    <div class="instructor-avatar">
+                                        ${photoHtml}
+                                    </div>
+                                    <div class="instructor-details">
+                                        <h4>${name}</h4>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        html = '<div class="no-results">No instructors available for this time slot.</div>';
+                    }
+
+                    $('#availableInstructors').html(html);
+                },
+                error: function () {
+                    $('#availableInstructors').html('<div class="no-results">Error loading available instructors. Please try again.</div>');
+                }
+            });
+        }
+
+        // Function to show booking summary
+        function showBookingSummary() {
+            // Format date for display
+            let displayDate = formatDisplayDate(new Date(selectedDate));
+
+            // Update summary fields
+            $('#summaryInstructor').text(selectedInstructor.name);
+            $('#summaryDate').text(displayDate);
+            $('#summaryTime').text(selectedTimeDisplay);
+
+            // Convert the small avatar to a larger photo for the summary
+            let summaryPhotoHtml = selectedInstructor.photo;
+            if (summaryPhotoHtml.includes('default-avatar')) {
+                // If it's a default avatar, create a larger version
+                let initial = selectedInstructor.name.charAt(0);
+                summaryPhotoHtml = `<div class="default-photo"><span>${initial}</span></div>`;
+            }
+
+            $('#summaryInstructorPhoto').html(summaryPhotoHtml);
+
+            // Update hidden form fields
+            $('#instructor_id').val(selectedInstructor.id);
+            $('#date').val(selectedDate);
+            $('#start_time').val(selectedStartTime);
+            $('#end_time').val(selectedEndTime);
+
+            // Hide current panel and show summary
+            if (currentFlow === 'instructor') {
+                $('#instructorTimesPanel').hide();
+            } else {
+                $('#timeInstructorsPanel').hide();
+            }
+
+            $('#bookingSummaryPanel').show();
+        }
+
+        // Function to reset booking flow
+        function resetBookingFlow() {
+            // Hide all panels
+            $('#instructorFlow, #timeFlow, #instructorCalendarPanel, #instructorTimesPanel, #timeSlotPanel, #timeInstructorsPanel, #bookingSummaryPanel').hide();
+
+            // Show booking method cards
+            $('.booking-method-card').parent().parent().parent().show();
+
+            // Reset selected values
+            selectedInstructor = null;
+            selectedDate = null;
+            selectedStartTime = null;
+            selectedEndTime = null;
+            selectedTimeDisplay = null;
+            currentFlow = null;
+            currentInstructorId = null;
+            currentCalendarDate = new Date();
+        }
+
+        // Helper function to format date as YYYY-MM-DD
+        function formatDate(date) {
+            let year = date.getFullYear();
+            let month = (date.getMonth() + 1).toString().padStart(2, '0');
+            let day = date.getDate().toString().padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // Helper function to format date for display
+        function formatDisplayDate(date) {
+            let options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            return date.toLocaleDateString('en-US', options);
+        }
+
+        // Function to generate calendar legend
+        function generateCalendarLegend() {
+            return `
+            <div class="calendar-legend mt-3">
+                <div class="legend-item"><span class="legend-color bg-success"></span> Available</div>
+                <div class="legend-item"><span class="legend-color bg-light"></span> Unavailable</div>
+            </div>
+            `;
+        }
     });
 </script>
 {% endblock %}

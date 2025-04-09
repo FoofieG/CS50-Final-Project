@@ -34,13 +34,13 @@
 
                     <!-- Admin and owner only-->
                     {% if current_user.role == "admin" or current_user.role == "owner" %}
-                        <li><a href="/admin/home">Admin Dashboard</a></li>
+                        <li><a href="/admin/home">Dashboard</a></li>
                         <li><a href="/admin/manage_time_requests">Time Requests</a></li>
                         <li><a href="/admin/instructor_schedule">Instructor Schedule</a></li>
                     {% endif %}
                     <!-- Instructor only-->
                     {% if current_user.role == "instructor" %}
-                        <li><a href="/instructor/calendar">My Calendar</a></li>
+                        <li><a href="/instructor/calendar">Calendar</a></li>
                         <li><a href="/instructor/history">History</a></li>
                     {% endif %}
                     <!-- Customer only-->
