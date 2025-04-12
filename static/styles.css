@@ -1,22 +1,14 @@
-/* Center the form vertically and horizontally */
-.login-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: auto; /* Full screen height */
-}
-.login-form {
-    width: 100%;
-    max-width: 350px;
-    padding: 20px;
-    background: #f9f9f9;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
 body {
     background-color: #f8f9fa;
     font-family: Arial, sans-serif;
+    padding-bottom: 40px;
 }
+
+.container {
+    max-width: 1200px;
+}
+
+.login-container,
 .register-container {
     width: 100%;
     max-width: 400px;
@@ -24,56 +16,172 @@ body {
     padding: 20px;
     background: white;
     border-radius: 8px;
-    box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 .form-group {
     margin-bottom: 15px;
 }
 
 /* Flash messages */
-
-/* Base styles for flash messages */
-.flash {
-    padding: 15px;
-    margin-bottom: 20px;
+.flash-message {
+    padding: 10px;
+    margin-top: 10px;
     border-radius: 5px;
-    font-size: 16px;
     font-weight: bold;
-    text-align: center;
 }
 
-/* Success message */
 .flash-message.success {
     background-color: #d4edda;
     color: #155724;
     border: 1px solid #c3e6cb;
-    padding: 10px;
-    margin-top: 10px;
 }
 
-/* Danger message */
 .flash-message.danger {
     background-color: #f8d7da;
     color: #721c24;
     border: 1px solid #f5c6cb;
-    padding: 10px;
-    margin-top: 10px;
 }
 
-/* Info message */
 .flash-message.info {
     background-color: #d1ecf1;
     color: #0c5460;
     border: 1px solid #bee5eb;
-    padding: 10px;
-    margin-top: 10px;
 }
 
-/* Warning message */
 .flash-message.warning {
     background-color: #fff3cd;
     color: #856404;
     border: 1px solid #ffeeba;
+}
+
+/* Calendar styles */
+.calendar-table {
+    table-layout: fixed;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 2px;
+    margin-bottom: 15px;
+}
+
+.day-header {
+    text-align: center;
+    font-size: 12px;
+    vertical-align: middle;
+    background-color: #f8f9fa;
+    padding: 5px 3px;
+    border-radius: 4px 4px 0 0;
+}
+
+.day-header.closed-day {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.day-header.today {
+    background-color: #cff4fc;
+    color: #055160;
+    font-weight: bold;
+    box-shadow: inset 0 0 0 2px #0dcaf0;
+}
+
+.today-cell {
+    position: relative;
+    box-shadow: inset 0 0 0 2px #0dcaf0;
+}
+
+.today-marker {
+    background-color: #cff4fc;
+    border: 2px solid #0dcaf0;
+}
+
+.schedule-cell {
+    height: 40px;
+    text-align: center;
+    vertical-align: middle;
+    font-size: 12px;
+    padding: 4px;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+}
+
+/* Calendar legend */
+.calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 15px;
     padding: 10px;
+    margin-top: 15px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    margin-right: 5px;
+    border-radius: 3px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Booking styles */
+.booking-method-card {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    background-color: #f9f9f9;
+}
+
+.booking-method-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    background-color: #f0f0f0;
+}
+
+.booking-method-card .card-inner {
+    padding: 20px;
+    text-align: center;
+}
+
+/* Utility classes */
+.mt-2 {
     margin-top: 10px;
+}
+
+.mt-3 {
+    margin-top: 15px;
+}
+
+.mt-4 {
+    margin-top: 20px;
+}
+
+.mb-3 {
+    margin-bottom: 15px;
+}
+
+.mb-4 {
+    margin-bottom: 20px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+
+    .login-container,
+    .register-container {
+        margin: 20px auto;
+    }
+
+    .calendar-table {
+        font-size: 10px;
+    }
 }

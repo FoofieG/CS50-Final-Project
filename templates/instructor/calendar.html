@@ -47,10 +47,10 @@
                                             </td>
                                             <td>
                                                 {% if lesson.customer_email %}
-                                                    <div>Email: {{ lesson.customer_email }}</div>
+                                                    <div><i class="fa fa-envelope"></i> {{ lesson.customer_email }}</div>
                                                 {% endif %}
                                                 {% if lesson.customer_phone %}
-                                                    <div>Phone: {{ lesson.customer_phone }}</div>
+                                                    <div><i class="fa fa-phone"></i> {{ lesson.customer_phone }}</div>
                                                 {% endif %}
                                             </td>
                                             <td>
@@ -80,9 +80,9 @@
             <!-- Monthly Calendar View (initially hidden) -->
             <div id="monthlyView" style="display: none;">
                 <div class="text-center mb-3">
-                    <button class="btn btn-sm calendar-nav-btn" id="prevMonth">&lt; Previous Month</button>
-                    <span id="currentMonthDisplay">{{ current_month }}</span>
-                    <button class="btn btn-sm calendar-nav-btn" id="nextMonth">Next Month &gt;</button>
+                    <button class="btn btn-sm calendar-nav-btn" id="prevMonth"><i class="fa fa-chevron-left"></i> Previous Month</button>
+                    <span id="currentMonthDisplay" class="mx-3">{{ current_month }}</span>
+                    <button class="btn btn-sm calendar-nav-btn" id="nextMonth">Next Month <i class="fa fa-chevron-right"></i></button>
                 </div>
                 <div id="instructorCalendar" class="table-responsive">
                     <!-- Calendar will be loaded here -->
@@ -224,8 +224,8 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <p><strong>Name:</strong> <span id="customerName"></span></p>
-                                <p><strong>Email:</strong> <span id="customerEmail"></span></p>
-                                <p><strong>Phone:</strong> <span id="customerPhone"></span></p>
+                                <p><i class="fa fa-envelope"></i><strong> Email:</strong> <span id="customerEmail"></span></p>
+                                <p><i class="fa fa-phone"></i><strong> Phone:</strong> <span id="customerPhone"></span></p>
                                 <p><strong>Age:</strong> <span id="customerAge"></span></p>
                                 <p><strong>Ski Type:</strong> <span id="customerSkiType"></span></p>
                             </div>

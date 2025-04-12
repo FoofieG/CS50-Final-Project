@@ -42,8 +42,9 @@
                                 <td>
                                     <form action="/customer/cancel_lesson" method="post" style="display: inline;">
                                         <input type="hidden" name="lesson_id" value="{{ lesson.id }}">
-                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to cancel this lesson?')">
-                                            <span class="glyphicon glyphicon-remove"></span> Cancel
+                                        <button type="submit" class="btn btn-danger btn-sm"
+                                            onclick="return confirm('Are you sure you want to cancel this lesson? This action cannot be undone.')">
+                                            <i class="fa fa-times"></i> Cancel
                                         </button>
                                     </form>
                                 </td>
@@ -52,7 +53,10 @@
                     </tbody>
                 </table>
             {% else %}
-                <div class="alert alert-info">You don't have any upcoming lessons. <a href="/customer/book_lesson">Book a lesson</a> to get started!</div>
+                <div class="alert alert-info">
+                    <i class="fa fa-info-circle"></i> You don't have any upcoming lessons.
+                    <a href="/customer/book_lesson" class="alert-link">Book a lesson</a> to get started!
+                </div>
             {% endif %}
         </div>
     </div>
@@ -100,7 +104,9 @@
                     </tbody>
                 </table>
             {% else %}
-                <div class="alert alert-info">You don't have any past lessons.</div>
+                <div class="alert alert-info">
+                    <i class="fa fa-info-circle"></i> You don't have any past lessons.
+                </div>
             {% endif %}
         </div>
     </div>
@@ -108,7 +114,7 @@
     <div class="row mt-4">
         <div class="col-md-12">
             <a href="/customer/book_lesson" class="btn btn-primary">
-                <span class="glyphicon glyphicon-plus"></span> Book a New Lesson
+                <i class="fa fa-plus"></i> Book a New Lesson
             </a>
         </div>
     </div>

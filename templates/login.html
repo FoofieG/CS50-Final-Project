@@ -5,24 +5,27 @@
 {% endblock %}
 
 {% block main %}
-    <div class="container login-container">
-        <form action="/login" method="post" class="login-form">
-            <h2 class="text-center">Login</h2>
-            <br>
+<div class="login-container">
+    <form action="/login" method="post" class="login-form">
+        <h2 class="text-center">Welcome Back</h2>
+        <p class="text-center text-muted">Sign in to access your account</p>
 
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" class="form-control" id="username" name="username" placeholder="Enter username" required>
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" required>
-            </div>
-            <button type="submit" class="btn btn-primary btn-block">Log In</button>
-            <br>
-            <div class="text-center mt-3">
-                <a href="/reset_password_request">Forgot Password?</a>
-            </div>
-        </form>
-    </div>
-{% endblock %}  
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" class="form-control" id="username" name="username" placeholder="Enter your username"
+                required autofocus>
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password"
+                required>
+            <a href="/reset_password_request">Forgot Password?</a>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+
+        <div class="text-center mt-3">
+            <p class="mt-2">Don't have an account? <a href="/register">Register now</a></p>
+        </div>
+    </form>
+</div>
+{% endblock %}
