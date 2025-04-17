@@ -1,0 +1,319 @@
+{% extends "layout.html" %}
+
+{% block title %}
+Lesson History
+{% endblock %}
+
+{% block main %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="page-header">
+                <h1>
+                    My Lesson History
+                    <small>View all your past lessons</small>
+                </h1>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="panel panel-primary">
+                <div class="panel-heading">
+                    <h3 class="panel-title">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <span>
+                                    {% if instructor.profile_picture %}
+                                    <img src="{{ instructor.profile_picture }}" alt="Profile" class="img-circle"
+                                        style="width: 30px; height: 30px; object-fit: cover; margin-right: 10px;">
+                                    {% endif %}
+                                    {{ instructor.name }} {{ instructor.surname }}'s Lesson History
+                                </span>
+                            </div>
+                            <div class="col-md-6 text-right">
+                                <div class="btn-group">
+                                    <a href="/instructor/dashboard" class="btn btn-xs btn-default">
+                                        <i class="fa fa-dashboard"></i> Dashboard
+                                    </a>
+                                    <a href="/instructor/schedule" class="btn btn-xs btn-default">
+                                        <i class="fa fa-calendar"></i> Schedule
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </h3>
+                </div>
+                <div class="panel-body">
+                    {% if not grouped_lessons %}
+                    <div class="alert alert-info">
+                        <h4><i class="fa fa-info-circle"></i> No Past Lessons</h4>
+                        <p>You don't have any past lessons yet. Once you complete lessons, they will appear here.</p>
+                    </div>
+                    {% else %}
+                    <div class="history-filters mb-3">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <input type="text" id="searchInput" class="form-control"
+                                        placeholder="Search by customer name or notes...">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <select id="monthFilter" class="form-control">
+                                        <option value="">All Months</option>
+                                        {% for month_year in grouped_lessons.keys() %}
+                                        <option value="{{ month_year }}">{{ month_year }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <select id="skiTypeFilter" class="form-control">
+                                        <option value="">All Ski Types</option>
+                                        <option value="Skis">Skis</option>
+                                        <option value="Snowboard">Snowboard</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="lessonHistory">
+                        {% for month_year, lessons in grouped_lessons.items() %}
+                        <div class="month-section" data-month="{{ month_year }}">
+                            <h3 class="month-header">
+                                <i class="fa fa-calendar-o"></i> {{ month_year }}
+                                <span class="badge">{{ lessons|length }} lessons</span>
+                            </h3>
+
+                            <div class="lesson-list">
+                                {% for lesson in lessons %}
+                                <div class="lesson-card" data-ski-type="{{ lesson.customer_ski_type }}"
+                                    data-search="{{ lesson.customer_first_name }} {{ lesson.customer_last_name }} {{ lesson.notes }}">
+                                    <div class="lesson-header">
+                                        <div class="lesson-date">
+                                            <i class="fa fa-calendar"></i> {{ lesson.formatted_date }}
+                                        </div>
+                                        <div class="lesson-time">
+                                            <i class="fa fa-clock-o"></i> {{ lesson.formatted_time }}
+                                        </div>
+                                        <div class="lesson-status">
+                                            <span
+                                                class="label label-{{ 'success' if lesson.status == 'completed' else 'default' }}">
+                                                {{ lesson.status|capitalize }}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="lesson-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h4 class="customer-name">
+                                                    <i class="fa fa-user"></i> {{ lesson.customer_first_name }} {{
+                                                    lesson.customer_last_name }}
+                                                </h4>
+                                                <div class="customer-details">
+                                                    {% if lesson.customer_email %}
+                                                    <p><i class="fa fa-envelope"></i> {{ lesson.customer_email }}</p>
+                                                    {% endif %}
+                                                    {% if lesson.customer_phone %}
+                                                    <p><i class="fa fa-phone"></i> {{ lesson.customer_phone }}</p>
+                                                    {% endif %}
+                                                    {% if lesson.customer_ski_type %}
+                                                    <p><i class="fa fa-snowflake-o"></i> {{ lesson.customer_ski_type }}
+                                                    </p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="lesson-notes">
+                                                    <h5><i class="fa fa-sticky-note"></i> Notes:</h5>
+                                                    <p>{{ lesson.notes or 'No notes for this lesson.' }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .mb-3 {
+        margin-bottom: 15px;
+    }
+
+    .month-header {
+        background-color: #f5f5f5;
+        padding: 10px 15px;
+        border-radius: 4px;
+        margin-top: 20px;
+        margin-bottom: 15px;
+        border-left: 4px solid #337ab7;
+    }
+
+    .lesson-card {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        background-color: #fff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .lesson-header {
+        background-color: #f9f9f9;
+        padding: 10px 15px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .lesson-date,
+    .lesson-time {
+        font-weight: 500;
+        color: #555;
+    }
+
+    .lesson-body {
+        padding: 15px;
+    }
+
+    .customer-name {
+        margin-top: 0;
+        margin-bottom: 10px;
+        color: #333;
+    }
+
+    .customer-details p {
+        margin-bottom: 5px;
+        color: #666;
+    }
+
+    .lesson-notes {
+        background-color: #f9f9f9;
+        padding: 10px;
+        border-radius: 4px;
+        height: 100%;
+    }
+
+    .lesson-notes h5 {
+        margin-top: 0;
+        color: #555;
+    }
+
+    .lesson-notes p {
+        color: #666;
+        white-space: pre-line;
+    }
+
+    .history-filters {
+        background-color: #f5f5f5;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+
+    /* No results message */
+    .no-results {
+        text-align: center;
+        padding: 30px;
+        background-color: #f9f9f9;
+        border-radius: 4px;
+        margin-top: 20px;
+        color: #666;
+    }
+</style>
+
+<script>
+    $(document).ready(function () {
+        // Search functionality
+        $('#searchInput').on('input', function () {
+            const searchTerm = $(this).val().toLowerCase();
+            filterLessons();
+        });
+
+        // Month filter
+        $('#monthFilter').on('change', function () {
+            filterLessons();
+        });
+
+        // Ski type filter
+        $('#skiTypeFilter').on('change', function () {
+            filterLessons();
+        });
+
+        // Combined filter function
+        function filterLessons() {
+            const searchTerm = $('#searchInput').val().toLowerCase();
+            const selectedMonth = $('#monthFilter').val();
+            const selectedSkiType = $('#skiTypeFilter').val();
+
+            // First hide/show month sections based on month filter
+            if (selectedMonth) {
+                $('.month-section').hide();
+                $(`.month-section[data-month="${selectedMonth}"]`).show();
+            } else {
+                $('.month-section').show();
+            }
+
+            // Then filter individual lessons
+            $('.lesson-card').each(function () {
+                const lessonCard = $(this);
+                const searchText = lessonCard.data('search').toLowerCase();
+                const skiType = lessonCard.data('ski-type');
+
+                const matchesSearch = !searchTerm || searchText.includes(searchTerm);
+                const matchesSkiType = !selectedSkiType || skiType === selectedSkiType;
+
+                if (matchesSearch && matchesSkiType) {
+                    lessonCard.show();
+                } else {
+                    lessonCard.hide();
+                }
+            });
+
+            // Check if any lessons are visible in each month section
+            $('.month-section').each(function () {
+                const monthSection = $(this);
+                const visibleLessons = monthSection.find('.lesson-card:visible').length;
+
+                // If no lessons are visible and this month is not specifically selected, hide the month
+                if (visibleLessons === 0 && (!selectedMonth || selectedMonth !== monthSection.data('month'))) {
+                    monthSection.hide();
+                }
+            });
+
+            // Show no results message if all lessons are filtered out
+            const visibleLessons = $('.lesson-card:visible').length;
+            if (visibleLessons === 0) {
+                // Remove existing no results message if any
+                $('.no-results').remove();
+
+                // Add no results message
+                $('#lessonHistory').append(`
+                <div class="no-results">
+                    <h4><i class="fa fa-search"></i> No lessons match your filters</h4>
+                    <p>Try adjusting your search criteria or filters.</p>
+                </div>
+            `);
+            } else {
+                // Remove no results message if lessons are visible
+                $('.no-results').remove();
+            }
+        }
+    });
+</script>
+{% endblock %}
