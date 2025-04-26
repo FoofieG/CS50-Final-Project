@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, flash, jsonify
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta, date
 from cs50 import SQL
+from werkzeug.security import generate_password_hash
 
 from helpers import open_time_ranges, handle_profile_picture
 

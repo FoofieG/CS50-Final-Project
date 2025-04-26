@@ -30,6 +30,51 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
+def send_reset_email(to_email, reset_url):
+    # Send password reset email
+    
+    # Configure email settings
+    SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+    SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
+    SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "NEED TO SET")
+    SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "NEED TO SET")
+    FROM_EMAIL = os.environ.get("FROM_EMAIL", "noreply@skiresort.com")
+    
+    # Create message
+    msg = MIMEMultipart()
+    msg['From'] = FROM_EMAIL
+    msg['To'] = to_email
+    msg['Subject'] = "Password Reset Request - Ski School"
+    
+    # Email body
+    body = f"""
+    <html>
+      <body>
+        <h2>Password Reset Request</h2>
+        <p>Hello,</p>
+        <p>We received a request to reset your password for your Ski School account.</p>
+        <p>Click the link below to set a new password:</p>
+        <p><a href="{reset_url}">Reset My Password</a></p>
+        <p>This link will expire in 24 hours.</p>
+        <p>If you didn't request a password reset, you can ignore this email.</p>
+        <p>Regards,<br>Ski School Team</p>
+      </body>
+    </html>
+    """
+    
+    msg.attach(MIMEText(body, 'html'))
+    
+    try:
+        # Connect to SMTP server and send email
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return False
+        
 # Define User Model
 class User(UserMixin):
     def __init__(self, user_id, username, role):
@@ -339,51 +384,6 @@ def reset_password(token):
         return redirect("/login")
     
     return render_template("reset_password.html", token=token)
-
-def send_reset_email(to_email, reset_url):
-    # Send password reset email
-    
-    # Configure email settings
-    SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-    SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
-    SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "kajus.oskutis@gmail.com")
-    SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "iwpj xwvo kzxk jcwq")
-    FROM_EMAIL = os.environ.get("FROM_EMAIL", "noreply@skiresort.com")
-    
-    # Create message
-    msg = MIMEMultipart()
-    msg['From'] = FROM_EMAIL
-    msg['To'] = to_email
-    msg['Subject'] = "Password Reset Request - Ski School"
-    
-    # Email body
-    body = f"""
-    <html>
-      <body>
-        <h2>Password Reset Request</h2>
-        <p>Hello,</p>
-        <p>We received a request to reset your password for your Ski School account.</p>
-        <p>Click the link below to set a new password:</p>
-        <p><a href="{reset_url}">Reset My Password</a></p>
-        <p>This link will expire in 24 hours.</p>
-        <p>If you didn't request a password reset, you can ignore this email.</p>
-        <p>Regards,<br>Ski School Team</p>
-      </body>
-    </html>
-    """
-    
-    msg.attach(MIMEText(body, 'html'))
-    
-    try:
-        # Connect to SMTP server and send email
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.send_message(msg)
-        return True
-    except Exception as e:
-        print(f"Error sending email: {e}")
-        return False
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
