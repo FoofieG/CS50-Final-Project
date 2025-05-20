@@ -37,7 +37,7 @@ A web-based role-specific scheduling and user management system for ski/snowboar
 
 - **🧑‍🏫 Lesson Booking System** – Smart filtering based on availability and ski type.
 
-- **🔁 Time-Off Requests** – Instructors submit requests; Admins manage approvals.
+- **🔁 Time-On/Off Requests** – Instructors submit requests; Admins manage approvals.
 
 - **👤 Customizable User Profiles** – Editable fields vary depending on role.
 
