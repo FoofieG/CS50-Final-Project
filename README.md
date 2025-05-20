@@ -2,7 +2,7 @@
 
 # 🏔️ Ski School Management System
 
-#### Video Demo: <URL HERE>
+<!-- #### Video Demo: <URL HERE> -->
 
 <!-- TABLE OF CONTENTS -->
 <details> 
